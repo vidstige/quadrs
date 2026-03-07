@@ -161,10 +161,11 @@ impl EmbeddedGraph {
             total += collapse_counts.get(i).copied().unwrap_or(0);
             active += 1;
         }
-        if active == 0 {
-            return 0;
-        }
-        let threshold = total as f64 / active as f64 / 10.0;
+        let threshold = if active == 0 {
+            0.0
+        } else {
+            total as f64 / active as f64 / 10.0
+        };
         let mut removed = 0;
         for i in 0..self.adjacency.len() {
             if self.adjacency[i].is_empty() {

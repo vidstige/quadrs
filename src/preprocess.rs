@@ -29,21 +29,6 @@ pub fn compute_mesh_stats(mesh: &TriMesh) -> MeshStats {
     let mut maximum_edge_length: f64 = 0.0;
     let mut surface_area = 0.0;
 
-    if mesh.faces.is_empty() {
-        for vertex in &mesh.vertices {
-            weighted_center += vertex;
-        }
-        if !mesh.vertices.is_empty() {
-            weighted_center /= mesh.vertices.len() as f64;
-        }
-        return MeshStats {
-            weighted_center,
-            average_edge_length,
-            maximum_edge_length,
-            surface_area,
-        };
-    }
-
     for face in &mesh.faces {
         let tri = [
             mesh.vertices[face[0]],
@@ -65,8 +50,15 @@ pub fn compute_mesh_stats(mesh: &TriMesh) -> MeshStats {
 
     if surface_area > EPS {
         weighted_center /= surface_area;
+    } else if !mesh.vertices.is_empty() {
+        for vertex in &mesh.vertices {
+            weighted_center += vertex;
+        }
+        weighted_center /= mesh.vertices.len() as f64;
     }
-    average_edge_length /= (mesh.faces.len() * 3) as f64;
+    if !mesh.faces.is_empty() {
+        average_edge_length /= (mesh.faces.len() * 3) as f64;
+    }
     MeshStats {
         weighted_center,
         average_edge_length,

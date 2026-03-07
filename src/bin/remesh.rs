@@ -10,8 +10,7 @@ use remesh::field::{
     optimize_positions_frozen, rotate_vector_into_plane, BoundaryConstraint, NativeState,
 };
 use remesh::preprocess::{
-    compute_dual_vertex_areas, compute_mesh_stats, generate_smooth_normals, generate_uniform_adjacency,
-    subdivide_to_max_edge,
+    compute_dual_vertex_areas, compute_mesh_stats, generate_smooth_normals, generate_uniform_adjacency, preprocess_mesh,
 };
 use remesh::topology::{build_directed_edges, DirectedEdges, TriMesh, INVALID};
 use remesh::meshio::Vec3;
@@ -175,15 +174,6 @@ fn target_scale(args: &Args, surface_area: f64) -> f64 {
         (surface_area / faces as f64).sqrt()
     } else {
         (surface_area / args.target_vertices.unwrap() as f64).sqrt()
-    }
-}
-
-fn preprocess_mesh(mesh: &TriMesh, scale: f64) -> TriMesh {
-    let stats = compute_mesh_stats(mesh);
-    if stats.maximum_edge_length * 2.0 > scale || stats.maximum_edge_length > stats.average_edge_length * 2.0 {
-        subdivide_to_max_edge(mesh, (scale * 0.5).min(stats.average_edge_length * 2.0))
-    } else {
-        mesh.clone()
     }
 }
 

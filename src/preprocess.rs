@@ -272,6 +272,15 @@ pub fn subdivide_to_max_edge(mesh: &TriMesh, max_length: f64) -> TriMesh {
     TriMesh { vertices, faces }
 }
 
+pub fn preprocess_mesh(mesh: &TriMesh, scale: f64) -> TriMesh {
+    let stats = compute_mesh_stats(mesh);
+    if stats.maximum_edge_length * 2.0 > scale || stats.maximum_edge_length > stats.average_edge_length * 2.0 {
+        subdivide_to_max_edge(mesh, (scale * 0.5).min(stats.average_edge_length * 2.0))
+    } else {
+        mesh.clone()
+    }
+}
+
 pub fn average_valence(mesh: &TriMesh) -> f64 {
     let mut neighbors = vec![HashSet::<usize>::new(); mesh.vertices.len()];
     for face in &mesh.faces {

@@ -156,5 +156,5 @@ fn target_scale(args: &Args, surface_area: f64) -> f64 {
 }
 
 fn usage() -> &'static str {
-    "usage: native-preprocess <input.obj> -o <output.obj> (--edge-length L | --target-vertices N | --target-faces N)"
+    "usage: preprocess <input.obj> -o <output.obj> (--edge-length L | --target-vertices N | --target-faces N)"
 }

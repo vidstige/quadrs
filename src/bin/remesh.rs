@@ -69,10 +69,10 @@ fn run() -> Result<(), Box<dyn Error>> {
         )),
     );
     if output_report.face_count == 0 {
-        return Err("native remesher produced no faces".into());
+        return Err("remesher produced no faces".into());
     }
     if output_report.non_quad_faces > 0 {
-        return Err(format!("native remesher produced {} non-quad faces", output_report.non_quad_faces).into());
+        return Err(format!("remesher produced {} non-quad faces", output_report.non_quad_faces).into());
     }
     Ok(())
 }
@@ -330,7 +330,7 @@ fn pick_best_candidate(
             break;
         }
     }
-    best.ok_or_else(|| "native remesher produced no candidate".into())
+    best.ok_or_else(|| "remesher produced no candidate".into())
 }
 
 fn solve_hierarchy(
@@ -456,7 +456,7 @@ fn print_report(label: &str, report: &MeshReport, baseline: Option<(&MeshReport,
 }
 
 fn usage() -> &'static str {
-    "usage: native-remesh <input.obj> -o <output.obj> (--edge-length L | --target-vertices N | --target-faces N) [--restarts N] [--hierarchy-orientation-iters N] [--hierarchy-position-iters N] [--orientation-iters N] [--position-iters N] [--frozen-orientation-iters N] [--frozen-position-iters N] [--seed N] [--intrinsic | --extrinsic]"
+    "usage: remesh <input.obj> -o <output.obj> (--edge-length L | --target-vertices N | --target-faces N) [--restarts N] [--hierarchy-orientation-iters N] [--hierarchy-position-iters N] [--orientation-iters N] [--position-iters N] [--frozen-orientation-iters N] [--frozen-position-iters N] [--seed N] [--intrinsic | --extrinsic]"
 }
 
 fn repair_quads(positions: &mut [Vec3], quads: &mut [[usize; 4]]) {

@@ -1,3 +1,4 @@
+use remesh::connectivity::{boundary_neighbors_from_quads, quad_edge_counts, vertex_neighbors_from_quads};
 use remesh::geom::quad_is_valid;
 use remesh::hierarchy::{build_hierarchy, prolong_origins, prolong_orientations, HierarchyLevel};
 use remesh::meshio::{load_obj, triangulate_faces, write_obj, ObjMesh};
@@ -17,7 +18,7 @@ use remesh::meshio::Vec3;
 use std::env;
 use std::error::Error;
 use std::path::PathBuf;
-use std::collections::{HashMap, VecDeque};
+use std::collections::VecDeque;
 
 fn main() {
     if matches!(env::args().nth(1).as_deref(), Some("-h" | "--help")) {
@@ -488,18 +489,8 @@ fn repair_quads(positions: &mut [Vec3], quads: &mut [[usize; 4]]) {
 }
 
 fn fill_small_boundary_loops(positions: &mut Vec<Vec3>, quads: &mut Vec<[usize; 4]>, max_len: usize) {
-    let mut edge_counts = HashMap::<(usize, usize), usize>::new();
-    for face in quads.iter() {
-        for i in 0..4 {
-            let a = face[i];
-            let b = face[(i + 1) % 4];
-            let key = if a < b { (a, b) } else { (b, a) };
-            *edge_counts.entry(key).or_insert(0) += 1;
-        }
-    }
-
     let mut boundary = vec![Vec::<usize>::new(); positions.len()];
-    for ((a, b), count) in edge_counts {
+    for ((a, b), count) in quad_edge_counts(quads) {
         if count != 1 {
             continue;
         }
@@ -591,8 +582,8 @@ fn smooth_and_reproject_invalid_quads(
     source_faces: &[[usize; 3]],
     source_boundary: &[(Vec3, Vec3)],
 ) {
-    let neighbors = build_vertex_neighbors(positions.len(), quads);
-    let boundary_neighbors = build_boundary_neighbors(positions.len(), quads);
+    let neighbors = vertex_neighbors_from_quads(positions.len(), quads);
+    let boundary_neighbors = boundary_neighbors_from_quads(positions.len(), quads);
     for _ in 0..4 {
         let invalid_faces = quads
             .iter()
@@ -639,44 +630,6 @@ fn smooth_and_reproject_invalid_quads(
             positions[vertex] = prev[vertex] * 0.25 + projected * 0.75;
         }
     }
-}
-
-fn build_vertex_neighbors(vertex_count: usize, quads: &[[usize; 4]]) -> Vec<Vec<usize>> {
-    let mut neighbors = vec![Vec::new(); vertex_count];
-    for face in quads {
-        for i in 0..4 {
-            let a = face[i];
-            let b = face[(i + 1) % 4];
-            if !neighbors[a].contains(&b) {
-                neighbors[a].push(b);
-            }
-            if !neighbors[b].contains(&a) {
-                neighbors[b].push(a);
-            }
-        }
-    }
-    neighbors
-}
-
-fn build_boundary_neighbors(vertex_count: usize, quads: &[[usize; 4]]) -> Vec<Vec<usize>> {
-    let mut counts = HashMap::<(usize, usize), usize>::new();
-    for face in quads {
-        for i in 0..4 {
-            let a = face[i];
-            let b = face[(i + 1) % 4];
-            let key = if a < b { (a, b) } else { (b, a) };
-            *counts.entry(key).or_insert(0) += 1;
-        }
-    }
-    let mut neighbors = vec![Vec::new(); vertex_count];
-    for ((a, b), count) in counts {
-        if count != 1 {
-            continue;
-        }
-        neighbors[a].push(b);
-        neighbors[b].push(a);
-    }
-    neighbors
 }
 
 fn closest_point_on_triangles(point: Vec3, vertices: &[Vec3], faces: &[[usize; 3]]) -> Vec3 {

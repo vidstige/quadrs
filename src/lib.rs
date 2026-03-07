@@ -1,3 +1,4 @@
+pub mod connectivity;
 pub mod geom;
 pub mod meshio;
 pub mod hierarchy;

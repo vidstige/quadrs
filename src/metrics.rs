@@ -1,6 +1,7 @@
+use crate::connectivity::{boundary_edges, count_components, face_edges, neighbors_from_edges};
 use crate::geom::{quad_is_valid, triangle_area};
 use crate::meshio::{triangulate_faces, ObjMesh, Vec3};
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, HashSet};
 
 const EPS: f64 = 1e-12;
 
@@ -24,7 +25,7 @@ pub struct MeshReport {
 pub fn analyze(mesh: &ObjMesh) -> MeshReport {
     let triangles = triangulate_faces(&mesh.faces);
     let mut edge_counts = HashMap::<(usize, usize), usize>::new();
-    let mut vertex_neighbors = vec![HashSet::<usize>::new(); mesh.vertices.len()];
+    let mut vertex_neighbors = vec![Vec::new(); mesh.vertices.len()];
     let mut used_vertices = vec![false; mesh.vertices.len()];
     let mut seen_faces = HashSet::<Vec<usize>>::new();
     let mut quad_faces = 0;
@@ -50,8 +51,12 @@ pub fn analyze(mesh: &ObjMesh) -> MeshReport {
         }
         for edge in face_edges(face) {
             *edge_counts.entry(edge).or_insert(0) += 1;
-            vertex_neighbors[edge.0].insert(edge.1);
-            vertex_neighbors[edge.1].insert(edge.0);
+            if !vertex_neighbors[edge.0].contains(&edge.1) {
+                vertex_neighbors[edge.0].push(edge.1);
+            }
+            if !vertex_neighbors[edge.1].contains(&edge.0) {
+                vertex_neighbors[edge.1].push(edge.0);
+            }
         }
     }
 
@@ -63,12 +68,11 @@ pub fn analyze(mesh: &ObjMesh) -> MeshReport {
         signed_volume += pa.dot(&pb.cross(&pc)) / 6.0;
     }
 
-    let boundary_edges_list: Vec<_> = edge_counts
-        .iter()
-        .filter_map(|(&edge, &count)| (count == 1).then_some(edge))
-        .collect();
+    let boundary_edges_list = boundary_edges(&edge_counts);
     let boundary_edges = boundary_edges_list.len();
-    let boundary_loops = count_boundary_components(mesh.vertices.len(), &boundary_edges_list);
+    let boundary_neighbors = neighbors_from_edges(mesh.vertices.len(), &boundary_edges_list);
+    let boundary_active = boundary_neighbors.iter().map(|neighbors| !neighbors.is_empty()).collect::<Vec<_>>();
+    let boundary_loops = count_components(&boundary_neighbors, &boundary_active);
     let nonmanifold_edges = edge_counts.values().filter(|&&count| count > 2).count();
     let isolated_vertices = vertex_neighbors.iter().filter(|neighbors| neighbors.is_empty()).count();
     let connected_components = count_components(&vertex_neighbors, &used_vertices);
@@ -94,60 +98,6 @@ pub fn ratio(output: f64, input: f64) -> Option<f64> {
     (input.abs() > EPS).then_some(output / input)
 }
 
-fn count_components(vertex_neighbors: &[HashSet<usize>], used_vertices: &[bool]) -> usize {
-    let mut visited = vec![false; vertex_neighbors.len()];
-    let mut components = 0;
-
-    for start in 0..vertex_neighbors.len() {
-        if visited[start] || !used_vertices[start] {
-            continue;
-        }
-        components += 1;
-        visited[start] = true;
-        let mut queue = VecDeque::from([start]);
-        while let Some(vertex) = queue.pop_front() {
-            for &next in &vertex_neighbors[vertex] {
-                if visited[next] {
-                    continue;
-                }
-                visited[next] = true;
-                queue.push_back(next);
-            }
-        }
-    }
-
-    components
-}
-
-fn count_boundary_components(vertex_count: usize, boundary_edges: &[(usize, usize)]) -> usize {
-    let mut neighbors = vec![Vec::<usize>::new(); vertex_count];
-    for &(a, b) in boundary_edges {
-        neighbors[a].push(b);
-        neighbors[b].push(a);
-    }
-
-    let mut visited = vec![false; vertex_count];
-    let mut components = 0;
-    for start in 0..vertex_count {
-        if visited[start] || neighbors[start].is_empty() {
-            continue;
-        }
-        components += 1;
-        visited[start] = true;
-        let mut queue = VecDeque::from([start]);
-        while let Some(vertex) = queue.pop_front() {
-            for &next in &neighbors[vertex] {
-                if visited[next] {
-                    continue;
-                }
-                visited[next] = true;
-                queue.push_back(next);
-            }
-        }
-    }
-    components
-}
-
 fn is_valid_face(face: &[usize], vertices: &[Vec3]) -> bool {
     if face.len() < 3 {
         return false;
@@ -169,18 +119,6 @@ fn is_valid_face(face: &[usize], vertices: &[Vec3]) -> bool {
             let area = triangle_area(vertices[tri[0]], vertices[tri[1]], vertices[tri[2]]);
             area > EPS
         })
-}
-
-fn face_edges(face: &[usize]) -> Vec<(usize, usize)> {
-    let mut edges = Vec::with_capacity(face.len());
-    for i in 0..face.len() {
-        edges.push(edge_key(face[i], face[(i + 1) % face.len()]));
-    }
-    edges
-}
-
-fn edge_key(a: usize, b: usize) -> (usize, usize) {
-    if a < b { (a, b) } else { (b, a) }
 }
 
 fn canonical_face(face: &[usize]) -> Vec<usize> {

@@ -1,3 +1,4 @@
+use remesh::geom::quad_is_valid;
 use remesh::hierarchy::{build_hierarchy, prolong_origins, prolong_orientations, HierarchyLevel};
 use remesh::meshio::{load_obj, triangulate_faces, write_obj, ObjMesh};
 use remesh::metrics::{analyze, ratio, MeshReport};
@@ -678,24 +679,6 @@ fn build_boundary_neighbors(vertex_count: usize, quads: &[[usize; 4]]) -> Vec<Ve
     neighbors
 }
 
-fn quad_is_valid(positions: &[Vec3], face: [usize; 4]) -> bool {
-    let points = face.map(|index| positions[index]);
-    let normal =
-        (points[1] - points[0]).cross(&(points[2] - points[0])) + (points[2] - points[0]).cross(&(points[3] - points[0]));
-    if normal.norm_squared() <= 1e-12 {
-        return false;
-    }
-    let axis = dominant_axis(normal);
-    let projected = points.map(|point| project_2d(point, axis));
-    if segments_intersect(projected[0], projected[1], projected[2], projected[3])
-        || segments_intersect(projected[1], projected[2], projected[3], projected[0])
-    {
-        return false;
-    }
-    triangle_area(points[0], points[1], points[2]) > 1e-12
-        && triangle_area(points[0], points[2], points[3]) > 1e-12
-}
-
 fn closest_point_on_triangles(point: Vec3, vertices: &[Vec3], faces: &[[usize; 3]]) -> Vec3 {
     let mut best = point;
     let mut best_dist = f64::INFINITY;
@@ -768,43 +751,6 @@ fn closest_point_on_triangle(point: Vec3, a: Vec3, b: Vec3, c: Vec3) -> Vec3 {
 
     let denom = 1.0 / (va + vb + vc);
     a + ab * (vb * denom) + ac * (vc * denom)
-}
-
-fn dominant_axis(normal: Vec3) -> usize {
-    let x = normal.x.abs();
-    let y = normal.y.abs();
-    let z = normal.z.abs();
-    if x >= y && x >= z {
-        0
-    } else if y >= z {
-        1
-    } else {
-        2
-    }
-}
-
-fn project_2d(point: Vec3, axis: usize) -> (f64, f64) {
-    match axis {
-        0 => (point.y, point.z),
-        1 => (point.x, point.z),
-        _ => (point.x, point.y),
-    }
-}
-
-fn segments_intersect(a0: (f64, f64), a1: (f64, f64), b0: (f64, f64), b1: (f64, f64)) -> bool {
-    let o1 = orient2d(a0, a1, b0);
-    let o2 = orient2d(a0, a1, b1);
-    let o3 = orient2d(b0, b1, a0);
-    let o4 = orient2d(b0, b1, a1);
-    o1 * o2 < -1e-12 && o3 * o4 < -1e-12
-}
-
-fn orient2d(a: (f64, f64), b: (f64, f64), c: (f64, f64)) -> f64 {
-    (b.0 - a.0) * (c.1 - a.1) - (b.1 - a.1) * (c.0 - a.0)
-}
-
-fn triangle_area(a: Vec3, b: Vec3, c: Vec3) -> f64 {
-    0.5 * (b - a).cross(&(c - a)).norm()
 }
 
 fn compact_quads(positions: &mut Vec<Vec3>, quads: &mut Vec<[usize; 4]>) {

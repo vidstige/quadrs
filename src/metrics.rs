@@ -1,5 +1,5 @@
+use crate::geom::{quad_is_valid, triangle_area};
 use crate::meshio::{triangulate_faces, ObjMesh, Vec3};
-use nalgebra::Vector2;
 use std::collections::{HashMap, HashSet, VecDeque};
 
 const EPS: f64 = 1e-12;
@@ -160,7 +160,7 @@ fn is_valid_face(face: &[usize], vertices: &[Vec3]) -> bool {
         return false;
     }
     if face.len() == 4 {
-        return is_valid_quad([face[0], face[1], face[2], face[3]], vertices);
+        return quad_is_valid(vertices, [face[0], face[1], face[2], face[3]]);
     }
 
     let triangles = triangulate_faces(&[face.to_vec()]);
@@ -169,68 +169,6 @@ fn is_valid_face(face: &[usize], vertices: &[Vec3]) -> bool {
             let area = triangle_area(vertices[tri[0]], vertices[tri[1]], vertices[tri[2]]);
             area > EPS
         })
-}
-
-fn is_valid_quad(face: [usize; 4], vertices: &[Vec3]) -> bool {
-    let points = [
-        vertices[face[0]],
-        vertices[face[1]],
-        vertices[face[2]],
-        vertices[face[3]],
-    ];
-    let normal =
-        (points[1] - points[0]).cross(&(points[2] - points[0])) + (points[2] - points[0]).cross(&(points[3] - points[0]));
-    if normal.norm_squared() <= EPS {
-        return false;
-    }
-
-    let axis = dominant_axis(normal);
-    let projected = points.map(|point| project_2d(point, axis));
-    if segments_intersect(projected[0], projected[1], projected[2], projected[3])
-        || segments_intersect(projected[1], projected[2], projected[3], projected[0])
-    {
-        return false;
-    }
-
-    triangle_area(points[0], points[1], points[2]) > EPS
-        && triangle_area(points[0], points[2], points[3]) > EPS
-}
-
-fn dominant_axis(normal: Vec3) -> usize {
-    let x = normal.x.abs();
-    let y = normal.y.abs();
-    let z = normal.z.abs();
-    if x >= y && x >= z {
-        0
-    } else if y >= z {
-        1
-    } else {
-        2
-    }
-}
-
-fn project_2d(point: Vec3, axis: usize) -> Vector2<f64> {
-    match axis {
-        0 => Vector2::new(point.y, point.z),
-        1 => Vector2::new(point.x, point.z),
-        _ => Vector2::new(point.x, point.y),
-    }
-}
-
-fn triangle_area(a: Vec3, b: Vec3, c: Vec3) -> f64 {
-    0.5 * (b - a).cross(&(c - a)).norm()
-}
-
-fn segments_intersect(a0: Vector2<f64>, a1: Vector2<f64>, b0: Vector2<f64>, b1: Vector2<f64>) -> bool {
-    let o1 = orient2d(a0, a1, b0);
-    let o2 = orient2d(a0, a1, b1);
-    let o3 = orient2d(b0, b1, a0);
-    let o4 = orient2d(b0, b1, a1);
-    o1 * o2 < -EPS && o3 * o4 < -EPS
-}
-
-fn orient2d(a: Vector2<f64>, b: Vector2<f64>, c: Vector2<f64>) -> f64 {
-    (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x)
 }
 
 fn face_edges(face: &[usize]) -> Vec<(usize, usize)> {

@@ -1,3 +1,4 @@
+pub mod geom;
 pub mod meshio;
 pub mod hierarchy;
 pub mod metrics;

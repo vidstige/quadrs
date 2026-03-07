@@ -116,7 +116,7 @@ impl EmbeddedGraph {
                     let Some(cycle) = extract_cycle(&mut adjacency, i, j, None) else {
                         continue;
                     };
-                    if cycle.len() >= 7 {
+                    if cycle.len() > 7 {
                         continue;
                     }
                     *stats.degree_histogram.entry(cycle.len()).or_insert(0) += 1;

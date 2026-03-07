@@ -13,7 +13,6 @@ pub struct HierarchyLevel {
     pub adjacency: Vec<Vec<Link>>,
     pub phases: Vec<Vec<usize>>,
     pub to_coarser: Option<Vec<usize>>,
-    pub from_coarser: Option<Vec<[usize; 2]>>,
 }
 
 #[derive(Clone)]
@@ -36,15 +35,13 @@ pub fn build_hierarchy(
         adjacency: adjacency.to_vec(),
         phases: greedy_color(adjacency),
         to_coarser: None,
-        from_coarser: None,
     }];
 
     loop {
-        let (coarse, to_coarser, from_coarser) = downsample(levels.last().unwrap());
+        let (coarse, to_coarser) = downsample(levels.last().unwrap());
         let done = coarse.positions.len() <= 1 || coarse.positions.len() == levels.last().unwrap().positions.len();
         let fine = levels.last_mut().unwrap();
         fine.to_coarser = Some(to_coarser);
-        fine.from_coarser = Some(from_coarser);
         levels.push(coarse);
         if done {
             break;
@@ -82,7 +79,7 @@ pub fn prolong_origins(_coarse: &HierarchyLevel, fine: &HierarchyLevel, coarse_o
         .collect()
 }
 
-fn downsample(level: &HierarchyLevel) -> (HierarchyLevel, Vec<usize>, Vec<[usize; 2]>) {
+fn downsample(level: &HierarchyLevel) -> (HierarchyLevel, Vec<usize>) {
     let mut entries = Vec::new();
     for i in 0..level.positions.len() {
         for link in &level.adjacency[i] {
@@ -182,9 +179,7 @@ fn downsample(level: &HierarchyLevel) -> (HierarchyLevel, Vec<usize>, Vec<[usize
             adjacency,
             phases,
             to_coarser: None,
-            from_coarser: None,
         },
         to_coarser,
-        from_coarser,
     )
 }

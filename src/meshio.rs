@@ -78,15 +78,6 @@ pub fn write_obj(
     Ok(())
 }
 
-pub fn write_quad_obj(
-    path: &Path,
-    vertices: &[Vec3],
-    quads: &[[usize; 4]],
-) -> Result<(), Box<dyn Error>> {
-    let faces: Vec<_> = quads.iter().map(|face| face.to_vec()).collect();
-    write_obj(path, vertices, &faces)
-}
-
 fn parse_face_index(token: &str, vertex_count: usize) -> Result<usize, Box<dyn Error>> {
     let raw = token
         .split('/')

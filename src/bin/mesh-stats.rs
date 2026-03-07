@@ -1,6 +1,7 @@
 use remesh::meshio::{load_obj, triangulate_faces};
 use remesh::metrics::analyze;
-use remesh::preprocess::{as_trimesh, average_valence, compute_dual_vertex_areas, compute_mesh_stats, dedge, generate_smooth_normals, generate_uniform_adjacency};
+use remesh::preprocess::{average_valence, compute_dual_vertex_areas, compute_mesh_stats, generate_smooth_normals, generate_uniform_adjacency};
+use remesh::topology::{build_directed_edges, TriMesh};
 use std::env;
 use std::error::Error;
 use std::path::PathBuf;
@@ -21,9 +22,12 @@ fn run() -> Result<(), Box<dyn Error>> {
     let input = PathBuf::from(input);
     let mesh = load_obj(&input)?;
     let report = analyze(&mesh);
-    let tri_mesh = as_trimesh(mesh.vertices, triangulate_faces(&mesh.faces));
+    let tri_mesh = TriMesh {
+        vertices: mesh.vertices,
+        faces: triangulate_faces(&mesh.faces),
+    };
     let stats = compute_mesh_stats(&tri_mesh);
-    let dedge = dedge(&tri_mesh);
+    let dedge = build_directed_edges(&tri_mesh);
     let dual_areas = compute_dual_vertex_areas(&tri_mesh, &dedge);
     let normals = generate_smooth_normals(&tri_mesh);
     let adjacency = generate_uniform_adjacency(&tri_mesh, &dedge);

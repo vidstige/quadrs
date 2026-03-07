@@ -364,14 +364,6 @@ impl Ord for ScheduledEdge {
     }
 }
 
-pub fn as_trimesh(vertices: Vec<Vec3>, faces: Vec<[usize; 3]>) -> TriMesh {
-    TriMesh { vertices, faces }
-}
-
-pub fn dedge(mesh: &TriMesh) -> DirectedEdges {
-    build_directed_edges(mesh)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

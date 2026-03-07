@@ -10,10 +10,10 @@ use remesh::field::{
     optimize_positions_frozen, rotate_vector_into_plane, BoundaryConstraint, NativeState,
 };
 use remesh::preprocess::{
-    as_trimesh, compute_dual_vertex_areas, compute_mesh_stats, dedge, generate_smooth_normals,
-    generate_uniform_adjacency, subdivide_to_max_edge,
+    compute_dual_vertex_areas, compute_mesh_stats, generate_smooth_normals, generate_uniform_adjacency,
+    subdivide_to_max_edge,
 };
-use remesh::topology::{DirectedEdges, TriMesh, INVALID};
+use remesh::topology::{build_directed_edges, DirectedEdges, TriMesh, INVALID};
 use remesh::meshio::Vec3;
 use std::env;
 use std::error::Error;
@@ -37,10 +37,13 @@ fn run() -> Result<(), Box<dyn Error>> {
     let input_report = analyze(&input);
     print_report("input", &input_report, None);
 
-    let tri_mesh = as_trimesh(input.vertices, triangulate_faces(&input.faces));
+    let tri_mesh = TriMesh {
+        vertices: input.vertices,
+        faces: triangulate_faces(&input.faces),
+    };
     let scale = target_scale(&args, compute_mesh_stats(&tri_mesh).surface_area);
     let tri_mesh = preprocess_mesh(&tri_mesh, scale);
-    let dedges = dedge(&tri_mesh);
+    let dedges = build_directed_edges(&tri_mesh);
     let adjacency = generate_uniform_adjacency(&tri_mesh, &dedges);
     let normals = generate_smooth_normals(&tri_mesh);
     let areas = compute_dual_vertex_areas(&tri_mesh, &dedges);

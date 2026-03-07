@@ -1,8 +1,8 @@
 use remesh::hierarchy::{build_hierarchy, prolong_origins, prolong_orientations, HierarchyLevel};
 use remesh::meshio::{load_obj, triangulate_faces, write_obj, ObjMesh};
 use remesh::metrics::{analyze, ratio, MeshReport};
-use remesh::native_graph::extract_graph;
-use remesh::native_field::{
+use remesh::graph::extract_graph;
+use remesh::field::{
     coordinate_system, freeze_orientation_ivars, freeze_position_ivars, initialize_state,
     optimize_orientations, optimize_orientations_frozen, optimize_positions,
     optimize_positions_frozen, rotate_vector_into_plane, BoundaryConstraint, NativeState,

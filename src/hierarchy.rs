@@ -1,5 +1,5 @@
 use crate::meshio::Vec3;
-use crate::native_field::greedy_color;
+use crate::field::greedy_color;
 use crate::preprocess::Link;
 use std::collections::HashMap;
 
@@ -61,7 +61,7 @@ pub fn prolong_orientations(coarse: &HierarchyLevel, fine: &HierarchyLevel, coar
         .enumerate()
         .map(|(i, &parent)| {
             let q = coarse_q[parent];
-            crate::native_field::rotate_vector_into_plane(q, coarse.normals[parent], fine.normals[i])
+            crate::field::rotate_vector_into_plane(q, coarse.normals[parent], fine.normals[i])
         })
         .collect()
 }

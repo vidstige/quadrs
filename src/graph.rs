@@ -1,6 +1,6 @@
 use crate::meshio::Vec3;
-use crate::native::{EmbeddedGraph, TaggedLink};
-use crate::native_field::{
+use crate::extract::{EmbeddedGraph, TaggedLink};
+use crate::field::{
     compat_orientation_extrinsic_4, compat_orientation_intrinsic_4,
     compat_position_extrinsic_index_4, compat_position_intrinsic_index_4, NativeState,
 };

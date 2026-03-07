@@ -18,7 +18,7 @@ Remesh an OBJ file:
 cargo run --release --bin remesh -- input.obj -o output.obj --target-faces 3000
 ```
 
-Useful native tools:
+Useful tools:
 
 ```bash
 cargo run --release --bin mesh-stats -- output.obj

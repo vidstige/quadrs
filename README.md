@@ -22,7 +22,6 @@ Useful tools:
 
 ```bash
 cargo run --release --bin mesh-stats -- output.obj
-cargo run --release --bin preprocess -- input.obj -o preprocessed.obj --target-faces 3000
 ```
 
 ## Reference

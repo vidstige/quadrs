@@ -1,8 +1,7 @@
 use crate::meshio::Vec3;
 use crate::extract::{EmbeddedGraph, TaggedLink};
 use crate::field::{
-    compat_orientation_extrinsic_4, compat_orientation_intrinsic_4,
-    compat_position_extrinsic_index_4, compat_position_intrinsic_index_4, NativeState,
+    orientation_compat, position_index_compat, NativeState,
 };
 use std::collections::{HashMap, HashSet};
 
@@ -15,6 +14,8 @@ struct CollapseEdge {
 
 pub fn extract_graph(state: &NativeState, intrinsic: bool) -> EmbeddedGraph {
     let inv_scale = 1.0 / state.scale;
+    let orient_compat = orientation_compat(intrinsic);
+    let position_compat = position_index_compat(intrinsic);
     let mut adjacency = vec![HashSet::<usize>::new(); state.positions.len()];
     let mut collapse_edges = Vec::new();
 
@@ -24,48 +25,24 @@ pub fn extract_graph(state: &NativeState, intrinsic: bool) -> EmbeddedGraph {
             if j < i {
                 continue;
             }
-            let (q_i, q_j) = if intrinsic {
-                compat_orientation_intrinsic_4(
-                    state.orientations[i],
-                    state.normals[i],
-                    state.orientations[j],
-                    state.normals[j],
-                )
-            } else {
-                compat_orientation_extrinsic_4(
-                    state.orientations[i],
-                    state.normals[i],
-                    state.orientations[j],
-                    state.normals[j],
-                )
-            };
-            let (_, shift_j, error) = if intrinsic {
-                compat_position_intrinsic_index_4(
-                    state.positions[i],
-                    state.normals[i],
-                    q_i,
-                    state.origins[i],
-                    state.positions[j],
-                    state.normals[j],
-                    q_j,
-                    state.origins[j],
-                    state.scale,
-                    inv_scale,
-                )
-            } else {
-                compat_position_extrinsic_index_4(
-                    state.positions[i],
-                    state.normals[i],
-                    q_i,
-                    state.origins[i],
-                    state.positions[j],
-                    state.normals[j],
-                    q_j,
-                    state.origins[j],
-                    state.scale,
-                    inv_scale,
-                )
-            };
+            let (q_i, q_j) = orient_compat(
+                state.orientations[i],
+                state.normals[i],
+                state.orientations[j],
+                state.normals[j],
+            );
+            let (_, shift_j, error) = position_compat(
+                state.positions[i],
+                state.normals[i],
+                q_i,
+                state.origins[i],
+                state.positions[j],
+                state.normals[j],
+                q_j,
+                state.origins[j],
+                state.scale,
+                inv_scale,
+            );
             let abs_diff = shift_j.map(|x| x.abs());
             if abs_diff.x.max(abs_diff.y) > 1 || (abs_diff.x == 1 && abs_diff.y == 1) {
                 continue;

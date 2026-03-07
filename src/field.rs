@@ -3,6 +3,11 @@ use crate::preprocess::Link;
 use nalgebra::Vector2;
 
 pub type IVec2 = Vector2<i32>;
+pub(crate) type OrientationCompatFn = fn(Vec3, Vec3, Vec3, Vec3) -> (Vec3, Vec3);
+pub(crate) type OrientationIndexCompatFn = fn(Vec3, Vec3, Vec3, Vec3) -> (i32, i32);
+pub(crate) type PositionCompatFn = fn(Vec3, Vec3, Vec3, Vec3, Vec3, Vec3, Vec3, Vec3, f64, f64) -> (Vec3, Vec3);
+pub(crate) type PositionIndexCompatFn =
+    fn(Vec3, Vec3, Vec3, Vec3, Vec3, Vec3, Vec3, Vec3, f64, f64) -> (IVec2, IVec2, f64);
 
 const EPS: f64 = 1e-12;
 const SQRT_3_OVER_4: f64 = 0.866_025_403_784_439;
@@ -88,6 +93,7 @@ pub fn greedy_color(adjacency: &[Vec<Link>]) -> Vec<Vec<usize>> {
 }
 
 pub fn optimize_orientations(state: &mut NativeState, phases: &[Vec<usize>], iterations: usize, intrinsic: bool) {
+    let compat = orientation_compat(intrinsic);
     for _ in 0..iterations {
         let prev = state.orientations.clone();
         for phase in phases {
@@ -99,11 +105,7 @@ pub fn optimize_orientations(state: &mut NativeState, phases: &[Vec<usize>], ite
                     if link.weight == 0.0 {
                         continue;
                     }
-                    let (_, aligned) = if intrinsic {
-                        compat_orientation_intrinsic_4(sum, n_i, prev[link.id], state.normals[link.id])
-                    } else {
-                        compat_orientation_extrinsic_4(sum, n_i, prev[link.id], state.normals[link.id])
-                    };
+                    let (_, aligned) = compat(sum, n_i, prev[link.id], state.normals[link.id]);
                     sum = sum * weight_sum + aligned * link.weight;
                     sum -= n_i * n_i.dot(&sum);
                     weight_sum += link.weight;
@@ -113,11 +115,7 @@ pub fn optimize_orientations(state: &mut NativeState, phases: &[Vec<usize>], ite
                     }
                 }
                 if let Some(boundary) = &state.boundary[i] {
-                    let (_, aligned) = if intrinsic {
-                        compat_orientation_intrinsic_4(sum, n_i, boundary.tangent, n_i)
-                    } else {
-                        compat_orientation_extrinsic_4(sum, n_i, boundary.tangent, n_i)
-                    };
+                    let (_, aligned) = compat(sum, n_i, boundary.tangent, n_i);
                     sum = sum * (1.0 - boundary.weight) + aligned * boundary.weight;
                     sum -= n_i * n_i.dot(&sum);
                     let norm = sum.norm();
@@ -135,6 +133,7 @@ pub fn optimize_orientations(state: &mut NativeState, phases: &[Vec<usize>], ite
 
 pub fn optimize_positions(state: &mut NativeState, phases: &[Vec<usize>], iterations: usize, intrinsic: bool) {
     let inv_scale = 1.0 / state.scale;
+    let compat = position_compat(intrinsic);
     for _ in 0..iterations {
         let prev = state.origins.clone();
         for phase in phases {
@@ -150,33 +149,18 @@ pub fn optimize_positions(state: &mut NativeState, phases: &[Vec<usize>], iterat
                     }
                     let j = link.id;
                     let q_j = normalize_or(state.orientations[j], state.orientations[j]);
-                    let (_, aligned) = if intrinsic {
-                        compat_position_intrinsic_4(
-                            v_i,
-                            n_i,
-                            q_i,
-                            sum,
-                            state.positions[j],
-                            state.normals[j],
-                            q_j,
-                            prev[j],
-                            state.scale,
-                            inv_scale,
-                        )
-                    } else {
-                        compat_position_extrinsic_4(
-                            v_i,
-                            n_i,
-                            q_i,
-                            sum,
-                            state.positions[j],
-                            state.normals[j],
-                            q_j,
-                            prev[j],
-                            state.scale,
-                            inv_scale,
-                        )
-                    };
+                    let (_, aligned) = compat(
+                        v_i,
+                        n_i,
+                        q_i,
+                        sum,
+                        state.positions[j],
+                        state.normals[j],
+                        q_j,
+                        prev[j],
+                        state.scale,
+                        inv_scale,
+                    );
                     sum = (sum * weight_sum + aligned * link.weight) / (weight_sum + link.weight);
                     weight_sum += link.weight;
                     sum -= n_i * n_i.dot(&(sum - v_i));
@@ -196,6 +180,7 @@ pub fn optimize_positions(state: &mut NativeState, phases: &[Vec<usize>], iterat
 }
 
 pub fn freeze_orientation_ivars(state: &mut NativeState, intrinsic: bool) {
+    let compat = orientation_index_compat(intrinsic);
     for i in 0..state.positions.len() {
         let q_i = normalize_or(state.orientations[i], state.orientations[i]);
         let n_i = state.normals[i];
@@ -203,11 +188,7 @@ pub fn freeze_orientation_ivars(state: &mut NativeState, intrinsic: bool) {
             let j = link.id;
             let q_j = normalize_or(state.orientations[j], state.orientations[j]);
             let n_j = state.normals[j];
-            let (r0, r1) = if intrinsic {
-                compat_orientation_intrinsic_index_4(q_i, n_i, q_j, n_j)
-            } else {
-                compat_orientation_extrinsic_index_4(q_i, n_i, q_j, n_j)
-            };
+            let (r0, r1) = compat(q_i, n_i, q_j, n_j);
             link.rot = [r0 as i8, r1 as i8];
         }
     }
@@ -242,6 +223,7 @@ pub fn optimize_orientations_frozen(state: &mut NativeState, phases: &[Vec<usize
 
 pub fn freeze_position_ivars(state: &mut NativeState, intrinsic: bool) {
     let inv_scale = 1.0 / state.scale;
+    let compat = position_index_compat(intrinsic);
     for i in 0..state.positions.len() {
         let n_i = state.normals[i];
         let v_i = state.positions[i];
@@ -253,13 +235,41 @@ pub fn freeze_position_ivars(state: &mut NativeState, intrinsic: bool) {
             let v_j = state.positions[j];
             let q_j = normalize_or(state.orientations[j], state.orientations[j]);
             let o_j = state.origins[j];
-            let (s0, s1, _) = if intrinsic {
-                compat_position_intrinsic_index_4(v_i, n_i, q_i, o_i, v_j, n_j, q_j, o_j, state.scale, inv_scale)
-            } else {
-                compat_position_extrinsic_index_4(v_i, n_i, q_i, o_i, v_j, n_j, q_j, o_j, state.scale, inv_scale)
-            };
+            let (s0, s1, _) = compat(v_i, n_i, q_i, o_i, v_j, n_j, q_j, o_j, state.scale, inv_scale);
             link.shift = [s0, s1];
         }
+    }
+}
+
+pub(crate) fn orientation_compat(intrinsic: bool) -> OrientationCompatFn {
+    if intrinsic {
+        compat_orientation_intrinsic_4
+    } else {
+        compat_orientation_extrinsic_4
+    }
+}
+
+pub(crate) fn orientation_index_compat(intrinsic: bool) -> OrientationIndexCompatFn {
+    if intrinsic {
+        compat_orientation_intrinsic_index_4
+    } else {
+        compat_orientation_extrinsic_index_4
+    }
+}
+
+pub(crate) fn position_compat(intrinsic: bool) -> PositionCompatFn {
+    if intrinsic {
+        compat_position_intrinsic_4
+    } else {
+        compat_position_extrinsic_4
+    }
+}
+
+pub(crate) fn position_index_compat(intrinsic: bool) -> PositionIndexCompatFn {
+    if intrinsic {
+        compat_position_intrinsic_index_4
+    } else {
+        compat_position_extrinsic_index_4
     }
 }
 

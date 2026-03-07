@@ -3,6 +3,7 @@ pub mod geom;
 pub mod meshio;
 pub mod hierarchy;
 pub mod metrics;
+pub mod postprocess;
 pub mod extract;
 pub mod field;
 pub mod graph;

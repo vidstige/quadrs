@@ -1,9 +1,9 @@
-use remesh::boundary::{build_boundary_constraints, build_boundary_hierarchy, build_boundary_segments};
+use remesh::boundary::{build_boundary_constraints, build_boundary_hierarchy};
 use remesh::hierarchy::{build_hierarchy, prolong_origins, prolong_orientations, HierarchyLevel};
 use remesh::meshio::{load_obj, triangulate_faces, write_obj, ObjMesh};
 use remesh::metrics::{analyze, ratio, MeshReport};
 use remesh::graph::extract_graph;
-use remesh::postprocess::{compact_quads, fill_small_boundary_loops, repair_quads, smooth_and_reproject_invalid_quads};
+use remesh::postprocess::{compact_quads, fill_small_boundary_loops, repair_quads};
 use remesh::field::{
     freeze_orientation_ivars, freeze_position_ivars, initialize_state, optimize_orientations,
     optimize_orientations_frozen, optimize_positions, optimize_positions_frozen, BoundaryConstraint, NativeState,
@@ -12,7 +12,6 @@ use remesh::preprocess::{
     compute_dual_vertex_areas, compute_mesh_stats, generate_smooth_normals, generate_uniform_adjacency, preprocess_mesh,
 };
 use remesh::topology::{build_directed_edges, TriMesh};
-use remesh::meshio::Vec3;
 use std::env;
 use std::error::Error;
 use std::path::PathBuf;
@@ -44,7 +43,6 @@ fn run() -> Result<(), Box<dyn Error>> {
     let adjacency = generate_uniform_adjacency(&tri_mesh, &dedges);
     let normals = generate_smooth_normals(&tri_mesh);
     let areas = compute_dual_vertex_areas(&tri_mesh, &dedges);
-    let boundary_segments = build_boundary_segments(&tri_mesh, &dedges);
     let levels = build_hierarchy(&tri_mesh.vertices, &normals, &areas, &adjacency);
     let boundaries = build_boundary_hierarchy(&levels, build_boundary_constraints(&tri_mesh, &dedges, &normals));
     let best = pick_best_candidate(
@@ -53,9 +51,6 @@ fn run() -> Result<(), Box<dyn Error>> {
         scale,
         &args,
         &input_report,
-        &tri_mesh.vertices,
-        &tri_mesh.faces,
-        &boundary_segments,
     )?;
     eprintln!("selected restart seed {}", best.seed);
     write_obj(&args.output, &best.mesh.vertices, &best.mesh.faces)?;
@@ -187,9 +182,6 @@ fn pick_best_candidate(
     scale: f64,
     args: &Args,
     input_report: &MeshReport,
-    source_vertices: &[Vec3],
-    source_faces: &[[usize; 3]],
-    source_boundary: &[(Vec3, Vec3)],
 ) -> Result<Candidate, Box<dyn Error>> {
     let mut best = None;
     for restart in 0..args.restarts.max(1) {
@@ -200,13 +192,6 @@ fn pick_best_candidate(
         repair_quads(&mut quad_mesh.positions, &mut quad_mesh.quads);
         fill_small_boundary_loops(&mut quad_mesh.positions, &mut quad_mesh.quads, 7);
         repair_quads(&mut quad_mesh.positions, &mut quad_mesh.quads);
-        smooth_and_reproject_invalid_quads(
-            &mut quad_mesh.positions,
-            &quad_mesh.quads,
-            source_vertices,
-            source_faces,
-            source_boundary,
-        );
         compact_quads(&mut quad_mesh.positions, &mut quad_mesh.quads);
         let mesh = ObjMesh {
             vertices: quad_mesh.positions,

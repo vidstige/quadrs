@@ -1,4 +1,4 @@
-use crate::connectivity::{boundary_neighbors_from_quads, quad_edge_counts, vertex_neighbors_from_quads};
+use crate::connectivity::quad_edge_counts;
 use crate::field::coordinate_system;
 use crate::geom::quad_is_valid;
 use crate::meshio::Vec3;
@@ -118,63 +118,6 @@ pub fn fill_small_boundary_loops(positions: &mut Vec<Vec3>, quads: &mut Vec<[usi
     quads.extend(additions);
 }
 
-pub fn smooth_and_reproject_invalid_quads(
-    positions: &mut [Vec3],
-    quads: &[[usize; 4]],
-    source_vertices: &[Vec3],
-    source_faces: &[[usize; 3]],
-    source_boundary: &[(Vec3, Vec3)],
-) {
-    let neighbors = vertex_neighbors_from_quads(positions.len(), quads);
-    let boundary_neighbors = boundary_neighbors_from_quads(positions.len(), quads);
-    for _ in 0..4 {
-        let invalid_faces = quads
-            .iter()
-            .enumerate()
-            .filter_map(|(i, &face)| (!quad_is_valid(positions, face)).then_some(i))
-            .collect::<Vec<_>>();
-        if invalid_faces.is_empty() {
-            break;
-        }
-
-        let mut affected = vec![false; positions.len()];
-        for &face_idx in &invalid_faces {
-            for &vertex in &quads[face_idx] {
-                affected[vertex] = true;
-                for &neighbor in &neighbors[vertex] {
-                    affected[neighbor] = true;
-                }
-            }
-        }
-
-        let prev = positions.to_vec();
-        for vertex in 0..positions.len() {
-            if !affected[vertex] {
-                continue;
-            }
-            if boundary_neighbors[vertex].len() >= 2 && !source_boundary.is_empty() {
-                let mut target = Vec3::zeros();
-                for &neighbor in &boundary_neighbors[vertex] {
-                    target += prev[neighbor];
-                }
-                target /= boundary_neighbors[vertex].len() as f64;
-                positions[vertex] = closest_point_on_segments(target, source_boundary);
-                continue;
-            }
-            if neighbors[vertex].is_empty() {
-                continue;
-            }
-            let mut target = Vec3::zeros();
-            for &neighbor in &neighbors[vertex] {
-                target += prev[neighbor];
-            }
-            target /= neighbors[vertex].len() as f64;
-            let projected = closest_point_on_triangles(target, source_vertices, source_faces);
-            positions[vertex] = prev[vertex] * 0.25 + projected * 0.75;
-        }
-    }
-}
-
 pub fn compact_quads(positions: &mut Vec<Vec3>, quads: &mut Vec<[usize; 4]>) {
     let mut used = vec![false; positions.len()];
     for face in quads.iter() {
@@ -197,78 +140,4 @@ pub fn compact_quads(positions: &mut Vec<Vec3>, quads: &mut Vec<[usize; 4]>) {
         }
     }
     *positions = compact;
-}
-
-fn closest_point_on_triangles(point: Vec3, vertices: &[Vec3], faces: &[[usize; 3]]) -> Vec3 {
-    let mut best = point;
-    let mut best_dist = f64::INFINITY;
-    for face in faces {
-        let candidate = closest_point_on_triangle(point, vertices[face[0]], vertices[face[1]], vertices[face[2]]);
-        let dist = (candidate - point).norm_squared();
-        if dist < best_dist {
-            best = candidate;
-            best_dist = dist;
-        }
-    }
-    best
-}
-
-fn closest_point_on_segments(point: Vec3, segments: &[(Vec3, Vec3)]) -> Vec3 {
-    let mut best = point;
-    let mut best_dist = f64::INFINITY;
-    for &(a, b) in segments {
-        let ab = b - a;
-        let t = ((point - a).dot(&ab) / ab.norm_squared().max(1e-12)).clamp(0.0, 1.0);
-        let candidate = a + ab * t;
-        let dist = (candidate - point).norm_squared();
-        if dist < best_dist {
-            best = candidate;
-            best_dist = dist;
-        }
-    }
-    best
-}
-
-fn closest_point_on_triangle(point: Vec3, a: Vec3, b: Vec3, c: Vec3) -> Vec3 {
-    let ab = b - a;
-    let ac = c - a;
-    let ap = point - a;
-    let d1 = ab.dot(&ap);
-    let d2 = ac.dot(&ap);
-    if d1 <= 0.0 && d2 <= 0.0 {
-        return a;
-    }
-
-    let bp = point - b;
-    let d3 = ab.dot(&bp);
-    let d4 = ac.dot(&bp);
-    if d3 >= 0.0 && d4 <= d3 {
-        return b;
-    }
-
-    let vc = d1 * d4 - d3 * d2;
-    if vc <= 0.0 && d1 >= 0.0 && d3 <= 0.0 {
-        return a + ab * (d1 / (d1 - d3));
-    }
-
-    let cp = point - c;
-    let d5 = ab.dot(&cp);
-    let d6 = ac.dot(&cp);
-    if d6 >= 0.0 && d5 <= d6 {
-        return c;
-    }
-
-    let vb = d5 * d2 - d1 * d6;
-    if vb <= 0.0 && d2 >= 0.0 && d6 <= 0.0 {
-        return a + ac * (d2 / (d2 - d6));
-    }
-
-    let va = d3 * d6 - d5 * d4;
-    if va <= 0.0 && (d4 - d3) >= 0.0 && (d5 - d6) >= 0.0 {
-        let bc = c - b;
-        return b + bc * ((d4 - d3) / ((d4 - d3) + (d5 - d6)));
-    }
-
-    let denom = 1.0 / (va + vb + vc);
-    a + ab * (vb * denom) + ac * (vc * denom)
 }

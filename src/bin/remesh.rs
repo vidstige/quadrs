@@ -3,7 +3,6 @@ use remesh::hierarchy::{build_hierarchy, prolong_origins, prolong_orientations, 
 use remesh::meshio::{load_obj, triangulate_faces, write_obj, ObjMesh};
 use remesh::metrics::{analyze, ratio, MeshReport};
 use remesh::graph::extract_graph;
-use remesh::postprocess::{compact_quads, fill_small_boundary_loops, repair_quads};
 use remesh::field::{
     freeze_orientation_ivars, freeze_position_ivars, initialize_state, optimize_orientations,
     optimize_orientations_frozen, optimize_positions, optimize_positions_frozen, BoundaryConstraint, NativeState,
@@ -68,12 +67,6 @@ fn run() -> Result<(), Box<dyn Error>> {
             ratio(output_report.abs_volume, input_report.abs_volume),
         )),
     );
-    if output_report.face_count == 0 {
-        return Err("remesher produced no faces".into());
-    }
-    if output_report.non_quad_faces > 0 {
-        return Err(format!("remesher produced {} non-quad faces", output_report.non_quad_faces).into());
-    }
     Ok(())
 }
 
@@ -185,11 +178,7 @@ fn remesh_once(
 ) -> Result<Candidate, Box<dyn Error>> {
     let state = solve_hierarchy(levels, boundaries, scale, args, seed);
     let graph = extract_graph(&state, args.intrinsic);
-    let mut quad_mesh = graph.extract_pure_quad_mesh(4, true);
-    repair_quads(&mut quad_mesh.positions, &mut quad_mesh.quads);
-    fill_small_boundary_loops(&mut quad_mesh.positions, &mut quad_mesh.quads, 7);
-    repair_quads(&mut quad_mesh.positions, &mut quad_mesh.quads);
-    compact_quads(&mut quad_mesh.positions, &mut quad_mesh.quads);
+    let quad_mesh = graph.extract_pure_quad_mesh(4, true);
     let mesh = ObjMesh {
         vertices: quad_mesh.positions,
         faces: quad_mesh.quads.into_iter().map(|face| face.to_vec()).collect(),

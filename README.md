@@ -18,6 +18,8 @@ Remesh an OBJ file:
 cargo run --release --bin remesh -- input.obj -o output.obj --target-faces 3000
 ```
 
+Use `--seed 1337` to make a run reproducible. If `--seed` is omitted, `remesh` seeds itself from the current system time.
+
 Useful tools:
 
 ```bash

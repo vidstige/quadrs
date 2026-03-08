@@ -15,6 +15,7 @@ use remesh::topology::{build_directed_edges, TriMesh};
 use std::env;
 use std::error::Error;
 use std::path::PathBuf;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 fn main() {
     if matches!(env::args().nth(1).as_deref(), Some("-h" | "--help")) {
@@ -45,17 +46,19 @@ fn run() -> Result<(), Box<dyn Error>> {
     let areas = compute_dual_vertex_areas(&tri_mesh, &dedges);
     let levels = build_hierarchy(&tri_mesh.vertices, &normals, &areas, &adjacency);
     let boundaries = build_boundary_hierarchy(&levels, build_boundary_constraints(&tri_mesh, &dedges, &normals));
-    let best = pick_best_candidate(
+    let seed = args.seed.unwrap_or_else(current_time_seed);
+    let result = remesh_once(
         &levels,
         &boundaries,
         scale,
         &args,
         &input_report,
+        seed,
     )?;
-    eprintln!("selected restart seed {}", best.seed);
-    write_obj(&args.output, &best.mesh.vertices, &best.mesh.faces)?;
+    eprintln!("seed {}", result.seed);
+    write_obj(&args.output, &result.mesh.vertices, &result.mesh.faces)?;
 
-    let output_report = best.report;
+    let output_report = result.report;
     print_report(
         "output",
         &output_report,
@@ -81,14 +84,13 @@ struct Args {
     edge_length: Option<f64>,
     target_vertices: Option<usize>,
     target_faces: Option<usize>,
-    restarts: usize,
     hierarchy_orientation_iters: usize,
     hierarchy_position_iters: usize,
     orientation_iters: usize,
     position_iters: usize,
     frozen_orientation_iters: usize,
     frozen_position_iters: usize,
-    seed: u64,
+    seed: Option<u64>,
     intrinsic: bool,
 }
 
@@ -101,14 +103,13 @@ where
     let mut edge_length = None;
     let mut target_vertices = None;
     let mut target_faces = None;
-    let mut restarts = 40;
     let mut hierarchy_orientation_iters = 6;
     let mut hierarchy_position_iters = 6;
     let mut orientation_iters = 40;
     let mut position_iters = 80;
     let mut frozen_orientation_iters = 20;
     let mut frozen_position_iters = 20;
-    let mut seed = 1;
+    let mut seed = None;
     let mut intrinsic = true;
     let mut args = args.into_iter();
     while let Some(arg) = args.next() {
@@ -117,14 +118,13 @@ where
             "--edge-length" => edge_length = Some(next_value(&mut args, &arg)?.parse()?),
             "--target-vertices" => target_vertices = Some(next_value(&mut args, &arg)?.parse()?),
             "--target-faces" => target_faces = Some(next_value(&mut args, &arg)?.parse()?),
-            "--restarts" => restarts = next_value(&mut args, &arg)?.parse()?,
             "--hierarchy-orientation-iters" => hierarchy_orientation_iters = next_value(&mut args, &arg)?.parse()?,
             "--hierarchy-position-iters" => hierarchy_position_iters = next_value(&mut args, &arg)?.parse()?,
             "--orientation-iters" => orientation_iters = next_value(&mut args, &arg)?.parse()?,
             "--position-iters" => position_iters = next_value(&mut args, &arg)?.parse()?,
             "--frozen-orientation-iters" => frozen_orientation_iters = next_value(&mut args, &arg)?.parse()?,
             "--frozen-position-iters" => frozen_position_iters = next_value(&mut args, &arg)?.parse()?,
-            "--seed" => seed = next_value(&mut args, &arg)?.parse()?,
+            "--seed" => seed = Some(next_value(&mut args, &arg)?.parse()?),
             "--intrinsic" => intrinsic = true,
             "--extrinsic" => intrinsic = false,
             _ if arg.starts_with('-') => return Err(format!("unknown flag: {arg}\n\n{}", usage()).into()),
@@ -139,7 +139,6 @@ where
             edge_length,
             target_vertices,
             target_faces,
-            restarts,
             hierarchy_orientation_iters,
             hierarchy_position_iters,
             orientation_iters,
@@ -176,47 +175,37 @@ struct Candidate {
     report: MeshReport,
 }
 
-fn pick_best_candidate(
+fn remesh_once(
     levels: &[HierarchyLevel],
     boundaries: &[Vec<Option<BoundaryConstraint>>],
     scale: f64,
     args: &Args,
     input_report: &MeshReport,
+    seed: u64,
 ) -> Result<Candidate, Box<dyn Error>> {
-    let mut best = None;
-    for restart in 0..args.restarts.max(1) {
-        let seed = args.seed + restart as u64;
-        let state = solve_hierarchy(levels, boundaries, scale, args, seed);
-        let graph = extract_graph(&state, args.intrinsic);
-        let mut quad_mesh = graph.extract_pure_quad_mesh(4, true);
-        repair_quads(&mut quad_mesh.positions, &mut quad_mesh.quads);
-        fill_small_boundary_loops(&mut quad_mesh.positions, &mut quad_mesh.quads, 7);
-        repair_quads(&mut quad_mesh.positions, &mut quad_mesh.quads);
-        compact_quads(&mut quad_mesh.positions, &mut quad_mesh.quads);
-        let mesh = ObjMesh {
-            vertices: quad_mesh.positions,
-            faces: quad_mesh.quads.into_iter().map(|face| face.to_vec()).collect(),
-        };
-        let report = analyze(&mesh);
-        eprintln!(
-            "restart seed {}: F={} boundary={} loops={} invalid={} area-ratio={:.3} volume-ratio={:.3}",
-            seed,
-            report.face_count,
-            report.boundary_edges,
-            report.boundary_loops,
-            report.invalid_faces,
-            ratio(report.area, input_report.area).unwrap_or(0.0),
-            ratio(report.abs_volume, input_report.abs_volume).unwrap_or(0.0),
-        );
-        let candidate = Candidate { seed, mesh, report };
-        if best.as_ref().map_or(true, |current| better_candidate(&candidate, current, input_report)) {
-            best = Some(candidate);
-        }
-        if is_clean_candidate(best.as_ref().unwrap(), input_report) {
-            break;
-        }
-    }
-    best.ok_or_else(|| "remesher produced no candidate".into())
+    let state = solve_hierarchy(levels, boundaries, scale, args, seed);
+    let graph = extract_graph(&state, args.intrinsic);
+    let mut quad_mesh = graph.extract_pure_quad_mesh(4, true);
+    repair_quads(&mut quad_mesh.positions, &mut quad_mesh.quads);
+    fill_small_boundary_loops(&mut quad_mesh.positions, &mut quad_mesh.quads, 7);
+    repair_quads(&mut quad_mesh.positions, &mut quad_mesh.quads);
+    compact_quads(&mut quad_mesh.positions, &mut quad_mesh.quads);
+    let mesh = ObjMesh {
+        vertices: quad_mesh.positions,
+        faces: quad_mesh.quads.into_iter().map(|face| face.to_vec()).collect(),
+    };
+    let report = analyze(&mesh);
+    eprintln!(
+        "seed {}: F={} boundary={} loops={} invalid={} area-ratio={:.3} volume-ratio={:.3}",
+        seed,
+        report.face_count,
+        report.boundary_edges,
+        report.boundary_loops,
+        report.invalid_faces,
+        ratio(report.area, input_report.area).unwrap_or(0.0),
+        ratio(report.abs_volume, input_report.abs_volume).unwrap_or(0.0),
+    );
+    Ok(Candidate { seed, mesh, report })
 }
 
 fn solve_hierarchy(
@@ -276,50 +265,11 @@ fn solve_hierarchy(
     states.remove(0)
 }
 
-fn better_candidate(lhs: &Candidate, rhs: &Candidate, input_report: &MeshReport) -> bool {
-    let lhs_components = lhs.report.connected_components.abs_diff(1);
-    let rhs_components = rhs.report.connected_components.abs_diff(1);
-    if lhs.report.non_quad_faces != rhs.report.non_quad_faces {
-        return lhs.report.non_quad_faces < rhs.report.non_quad_faces;
-    }
-    if lhs.report.nonmanifold_edges != rhs.report.nonmanifold_edges {
-        return lhs.report.nonmanifold_edges < rhs.report.nonmanifold_edges;
-    }
-    if lhs.report.invalid_faces != rhs.report.invalid_faces {
-        return lhs.report.invalid_faces < rhs.report.invalid_faces;
-    }
-    if lhs_components != rhs_components {
-        return lhs_components < rhs_components;
-    }
-    let lhs_loops = lhs.report.boundary_loops.abs_diff(input_report.boundary_loops);
-    let rhs_loops = rhs.report.boundary_loops.abs_diff(input_report.boundary_loops);
-    if lhs_loops != rhs_loops {
-        return lhs_loops < rhs_loops;
-    }
-    let lhs_boundary = lhs.report.boundary_edges.abs_diff(input_report.boundary_edges);
-    let rhs_boundary = rhs.report.boundary_edges.abs_diff(input_report.boundary_edges);
-    if lhs_boundary != rhs_boundary {
-        return lhs_boundary < rhs_boundary;
-    }
-    let lhs_area = (ratio(lhs.report.area, input_report.area).unwrap_or(0.0) - 1.0).abs();
-    let rhs_area = (ratio(rhs.report.area, input_report.area).unwrap_or(0.0) - 1.0).abs();
-    if (lhs_area - rhs_area).abs() > 1e-9 {
-        return lhs_area < rhs_area;
-    }
-    let lhs_volume = (ratio(lhs.report.abs_volume, input_report.abs_volume).unwrap_or(0.0) - 1.0).abs();
-    let rhs_volume = (ratio(rhs.report.abs_volume, input_report.abs_volume).unwrap_or(0.0) - 1.0).abs();
-    if (lhs_volume - rhs_volume).abs() > 1e-9 {
-        return lhs_volume < rhs_volume;
-    }
-    lhs.report.face_count > rhs.report.face_count
-}
-
-fn is_clean_candidate(candidate: &Candidate, input_report: &MeshReport) -> bool {
-    candidate.report.non_quad_faces == 0
-        && candidate.report.nonmanifold_edges == 0
-        && candidate.report.invalid_faces == 0
-        && candidate.report.connected_components == input_report.connected_components
-        && candidate.report.boundary_loops == input_report.boundary_loops
+fn current_time_seed() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos() as u64
 }
 
 fn print_report(label: &str, report: &MeshReport, baseline: Option<(&MeshReport, Option<f64>, Option<f64>)>) {
@@ -342,5 +292,5 @@ fn print_report(label: &str, report: &MeshReport, baseline: Option<(&MeshReport,
 }
 
 fn usage() -> &'static str {
-    "usage: remesh <input.obj> -o <output.obj> (--edge-length L | --target-vertices N | --target-faces N) [--restarts N] [--hierarchy-orientation-iters N] [--hierarchy-position-iters N] [--orientation-iters N] [--position-iters N] [--frozen-orientation-iters N] [--frozen-position-iters N] [--seed N] [--intrinsic | --extrinsic]"
+    "usage: remesh <input.obj> -o <output.obj> (--edge-length L | --target-vertices N | --target-faces N) [--hierarchy-orientation-iters N] [--hierarchy-position-iters N] [--orientation-iters N] [--position-iters N] [--frozen-orientation-iters N] [--frozen-position-iters N] [--seed N] [--intrinsic | --extrinsic]"
 }

@@ -57,7 +57,10 @@ fn run() -> Result<(), Box<dyn Error>> {
     println!("boundary_edges: {}", report.boundary_edges);
     println!("boundary_loops: {}", report.boundary_loops);
     println!("nonmanifold_edges: {}", report.nonmanifold_edges);
-    println!("invalid_faces: {}", report.invalid_faces);
+    println!("invalid_lt3: {}", report.fewer_than_three_faces);
+    println!("invalid_repeat: {}", report.repeated_vertex_faces);
+    println!("invalid_index: {}", report.invalid_vertex_index_faces);
+    println!("invalid_quad: {}", report.invalid_quad_faces);
     println!("duplicate_faces: {}", report.duplicate_faces);
     println!("isolated_vertices: {}", report.isolated_vertices);
     println!("components: {}", report.connected_components);

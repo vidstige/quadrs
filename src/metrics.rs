@@ -1,5 +1,5 @@
 use crate::connectivity::{boundary_edges, count_components, face_edges, neighbors_from_edges};
-use crate::geom::{quad_is_valid, triangle_area};
+use crate::geom::quad_is_valid;
 use crate::meshio::{triangulate_faces, ObjMesh, Vec3};
 use std::collections::{HashMap, HashSet};
 
@@ -16,7 +16,10 @@ pub struct MeshReport {
     pub boundary_edges: usize,
     pub boundary_loops: usize,
     pub nonmanifold_edges: usize,
-    pub invalid_faces: usize,
+    pub fewer_than_three_faces: usize,
+    pub repeated_vertex_faces: usize,
+    pub invalid_vertex_index_faces: usize,
+    pub invalid_quad_faces: usize,
     pub duplicate_faces: usize,
     pub isolated_vertices: usize,
     pub connected_components: usize,
@@ -29,7 +32,10 @@ pub fn analyze(mesh: &ObjMesh) -> MeshReport {
     let mut used_vertices = vec![false; mesh.vertices.len()];
     let mut seen_faces = HashSet::<Vec<usize>>::new();
     let mut quad_faces = 0;
-    let mut invalid_faces = 0;
+    let mut fewer_than_three_faces = 0;
+    let mut repeated_vertex_faces = 0;
+    let mut invalid_vertex_index_faces = 0;
+    let mut invalid_quad_faces = 0;
     let mut duplicate_faces = 0;
     let mut area = 0.0;
     let mut signed_volume = 0.0;
@@ -38,9 +44,10 @@ pub fn analyze(mesh: &ObjMesh) -> MeshReport {
         if face.len() == 4 {
             quad_faces += 1;
         }
-        if !is_valid_face(face, &mesh.vertices) {
-            invalid_faces += 1;
-        }
+        fewer_than_three_faces += has_too_few_vertices(face) as usize;
+        repeated_vertex_faces += has_repeated_vertex(face) as usize;
+        invalid_vertex_index_faces += has_invalid_vertex_index(face, mesh.vertices.len()) as usize;
+        invalid_quad_faces += has_invalid_quad(face, &mesh.vertices) as usize;
         if !seen_faces.insert(canonical_face(face)) {
             duplicate_faces += 1;
         }
@@ -87,7 +94,10 @@ pub fn analyze(mesh: &ObjMesh) -> MeshReport {
         boundary_edges,
         boundary_loops,
         nonmanifold_edges,
-        invalid_faces,
+        fewer_than_three_faces,
+        repeated_vertex_faces,
+        invalid_vertex_index_faces,
+        invalid_quad_faces,
         duplicate_faces,
         isolated_vertices,
         connected_components,
@@ -98,27 +108,24 @@ pub fn ratio(output: f64, input: f64) -> Option<f64> {
     (input.abs() > EPS).then_some(output / input)
 }
 
-fn is_valid_face(face: &[usize], vertices: &[Vec3]) -> bool {
-    if face.len() < 3 {
-        return false;
-    }
-    let distinct: HashSet<_> = face.iter().copied().collect();
-    if distinct.len() != face.len() {
-        return false;
-    }
-    if face.iter().any(|&index| index >= vertices.len()) {
-        return false;
-    }
-    if face.len() == 4 {
-        return quad_is_valid(vertices, [face[0], face[1], face[2], face[3]]);
-    }
+fn has_too_few_vertices(face: &[usize]) -> bool {
+    face.len() < 3
+}
 
-    let triangles = triangulate_faces(&[face.to_vec()]);
-    !triangles.is_empty()
-        && triangles.iter().all(|&tri| {
-            let area = triangle_area(vertices[tri[0]], vertices[tri[1]], vertices[tri[2]]);
-            area > EPS
-        })
+fn has_repeated_vertex(face: &[usize]) -> bool {
+    let distinct: HashSet<_> = face.iter().copied().collect();
+    distinct.len() != face.len()
+}
+
+fn has_invalid_vertex_index(face: &[usize], vertex_count: usize) -> bool {
+    face.iter().any(|&index| index >= vertex_count)
+}
+
+fn has_invalid_quad(face: &[usize], vertices: &[Vec3]) -> bool {
+    face.len() == 4
+        && !has_repeated_vertex(face)
+        && !has_invalid_vertex_index(face, vertices.len())
+        && !quad_is_valid(vertices, [face[0], face[1], face[2], face[3]])
 }
 
 fn canonical_face(face: &[usize]) -> Vec<usize> {

@@ -185,12 +185,15 @@ fn remesh_once(
     };
     let report = analyze(&mesh);
     eprintln!(
-        "seed {}: F={} boundary={} loops={} invalid={} area-ratio={:.3} volume-ratio={:.3}",
+        "seed {}: F={} boundary={} loops={} invalid-lt3={} invalid-repeat={} invalid-index={} invalid-quad={} area-ratio={:.3} volume-ratio={:.3}",
         seed,
         report.face_count,
         report.boundary_edges,
         report.boundary_loops,
-        report.invalid_faces,
+        report.fewer_than_three_faces,
+        report.repeated_vertex_faces,
+        report.invalid_vertex_index_faces,
+        report.invalid_quad_faces,
         ratio(report.area, input_report.area).unwrap_or(0.0),
         ratio(report.abs_volume, input_report.abs_volume).unwrap_or(0.0),
     );
@@ -267,8 +270,17 @@ fn print_report(label: &str, report: &MeshReport, baseline: Option<(&MeshReport,
         report.vertex_count, report.face_count, report.quad_faces, report.non_quad_faces, report.area, report.abs_volume
     );
     eprintln!(
-        "{label}: boundary edges={} loops={} non-manifold edges={} invalid faces={} duplicate faces={} isolated vertices={} components={}",
-        report.boundary_edges, report.boundary_loops, report.nonmanifold_edges, report.invalid_faces, report.duplicate_faces, report.isolated_vertices, report.connected_components
+        "{label}: boundary edges={} loops={} non-manifold edges={} invalid-lt3={} invalid-repeat={} invalid-index={} invalid-quad={} duplicate faces={} isolated vertices={} components={}",
+        report.boundary_edges,
+        report.boundary_loops,
+        report.nonmanifold_edges,
+        report.fewer_than_three_faces,
+        report.repeated_vertex_faces,
+        report.invalid_vertex_index_faces,
+        report.invalid_quad_faces,
+        report.duplicate_faces,
+        report.isolated_vertices,
+        report.connected_components
     );
     if let Some((_, area_ratio, volume_ratio)) = baseline {
         if let Some(value) = area_ratio {

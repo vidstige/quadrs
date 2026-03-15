@@ -52,7 +52,7 @@ fn run() -> Result<(), Box<dyn Error>> {
     let levels = build_hierarchy(&tri_mesh.vertices, &normals, &areas, &adjacency);
     let boundaries = build_boundary_hierarchy(&levels, build_boundary_constraints(&tri_mesh, &dedges, &normals));
     let seed = args.seed.unwrap_or_else(current_time_seed);
-    let result = remesh_once(
+    let result = remesh(
         &levels,
         &boundaries,
         scale,
@@ -168,7 +168,7 @@ struct Candidate {
     mesh: ObjMesh,
 }
 
-fn remesh_once(
+fn remesh(
     levels: &[HierarchyLevel],
     boundaries: &[Vec<Option<BoundaryConstraint>>],
     scale: f64,

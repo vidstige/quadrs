@@ -1,6 +1,6 @@
 use remesh::meshio::{load_obj, triangulate_faces};
 use remesh::metrics::analyze;
-use remesh::preprocess::{average_valence, compute_dual_vertex_areas, compute_mesh_stats, generate_smooth_normals, generate_uniform_adjacency};
+use remesh::preprocess::{compute_dual_vertex_areas, compute_mesh_stats, generate_smooth_normals, generate_uniform_adjacency};
 use remesh::topology::{build_directed_edges, TriMesh};
 use std::env;
 use std::error::Error;
@@ -61,14 +61,9 @@ fn run() -> Result<(), Box<dyn Error>> {
     println!("invalid_index: {}", report.invalid_vertex_index_faces);
     println!("invalid_quad: {}", report.invalid_quad_faces);
     println!("isolated_vertices: {}", report.isolated_vertices);
-    println!("avg_valence: {:.6}", average_valence(&tri_mesh));
     println!("avg_edge_length: {:.9}", stats.average_edge_length);
     println!("max_edge_length: {:.9}", stats.maximum_edge_length);
     println!("surface_area_tri: {:.9}", stats.surface_area);
-    println!(
-        "weighted_center: {:.9} {:.9} {:.9}",
-        stats.weighted_center.x, stats.weighted_center.y, stats.weighted_center.z
-    );
     println!("boundary_vertices: {}", dedge.boundary.iter().filter(|&&v| v).count());
     println!("nonmanifold_vertices: {}", dedge.nonmanifold.iter().filter(|&&v| v).count());
     println!("avg_dual_area: {:.9}", avg_dual_area);

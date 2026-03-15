@@ -3,13 +3,11 @@ use crate::topology::{build_directed_edges, dedge_next_3, dedge_prev_3, Directed
 use nalgebra::Vector2;
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
-use std::collections::HashSet;
 
 const EPS: f64 = 1e-12;
 
 #[derive(Clone, Debug)]
 pub struct MeshStats {
-    pub weighted_center: Vec3,
     pub average_edge_length: f64,
     pub maximum_edge_length: f64,
     pub surface_area: f64,
@@ -24,7 +22,6 @@ pub struct Link {
 }
 
 pub fn compute_mesh_stats(mesh: &TriMesh) -> MeshStats {
-    let mut weighted_center = Vec3::zeros();
     let mut average_edge_length = 0.0;
     let mut maximum_edge_length: f64 = 0.0;
     let mut surface_area = 0.0;
@@ -35,32 +32,18 @@ pub fn compute_mesh_stats(mesh: &TriMesh) -> MeshStats {
             mesh.vertices[face[1]],
             mesh.vertices[face[2]],
         ];
-        let mut center = Vec3::zeros();
         for i in 0..3 {
             let edge_length = (tri[i] - tri[(i + 1) % 3]).norm();
             average_edge_length += edge_length;
             maximum_edge_length = maximum_edge_length.max(edge_length);
-            center += tri[i];
         }
-        center /= 3.0;
         let area = 0.5 * (tri[1] - tri[0]).cross(&(tri[2] - tri[0])).norm();
         surface_area += area;
-        weighted_center += center * area;
-    }
-
-    if surface_area > EPS {
-        weighted_center /= surface_area;
-    } else if !mesh.vertices.is_empty() {
-        for vertex in &mesh.vertices {
-            weighted_center += vertex;
-        }
-        weighted_center /= mesh.vertices.len() as f64;
     }
     if !mesh.faces.is_empty() {
         average_edge_length /= (mesh.faces.len() * 3) as f64;
     }
     MeshStats {
-        weighted_center,
         average_edge_length,
         maximum_edge_length,
         surface_area,
@@ -271,23 +254,6 @@ pub fn preprocess_mesh(mesh: &TriMesh, scale: f64) -> TriMesh {
     } else {
         mesh.clone()
     }
-}
-
-pub fn average_valence(mesh: &TriMesh) -> f64 {
-    let mut neighbors = vec![HashSet::<usize>::new(); mesh.vertices.len()];
-    for face in &mesh.faces {
-        for i in 0..3 {
-            let a = face[i];
-            let b = face[(i + 1) % 3];
-            neighbors[a].insert(b);
-            neighbors[b].insert(a);
-        }
-    }
-    let used = neighbors.iter().filter(|set| !set.is_empty()).count();
-    if used == 0 {
-        return 0.0;
-    }
-    neighbors.iter().map(|set| set.len() as f64).sum::<f64>() / used as f64
 }
 
 fn schedule_edges(

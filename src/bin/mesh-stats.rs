@@ -55,15 +55,12 @@ fn run() -> Result<(), Box<dyn Error>> {
     println!("area: {:.9}", report.area);
     println!("abs_volume: {:.9}", report.abs_volume);
     println!("boundary_edges: {}", report.boundary_edges);
-    println!("boundary_loops: {}", report.boundary_loops);
     println!("nonmanifold_edges: {}", report.nonmanifold_edges);
     println!("invalid_lt3: {}", report.fewer_than_three_faces);
     println!("invalid_repeat: {}", report.repeated_vertex_faces);
     println!("invalid_index: {}", report.invalid_vertex_index_faces);
     println!("invalid_quad: {}", report.invalid_quad_faces);
-    println!("duplicate_faces: {}", report.duplicate_faces);
     println!("isolated_vertices: {}", report.isolated_vertices);
-    println!("components: {}", report.connected_components);
     println!("avg_valence: {:.6}", average_valence(&tri_mesh));
     println!("avg_edge_length: {:.9}", stats.average_edge_length);
     println!("max_edge_length: {:.9}", stats.maximum_edge_length);

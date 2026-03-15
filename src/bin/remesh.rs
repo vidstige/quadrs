@@ -185,11 +185,10 @@ fn remesh_once(
     };
     let report = analyze(&mesh);
     eprintln!(
-        "seed {}: F={} boundary={} loops={} invalid-lt3={} invalid-repeat={} invalid-index={} invalid-quad={} area-ratio={:.3} volume-ratio={:.3}",
+        "seed {}: F={} boundary={} invalid-lt3={} invalid-repeat={} invalid-index={} invalid-quad={} area-ratio={:.3} volume-ratio={:.3}",
         seed,
         report.face_count,
         report.boundary_edges,
-        report.boundary_loops,
         report.fewer_than_three_faces,
         report.repeated_vertex_faces,
         report.invalid_vertex_index_faces,
@@ -270,17 +269,14 @@ fn print_report(label: &str, report: &MeshReport, baseline: Option<(&MeshReport,
         report.vertex_count, report.face_count, report.quad_faces, report.non_quad_faces, report.area, report.abs_volume
     );
     eprintln!(
-        "{label}: boundary edges={} loops={} non-manifold edges={} invalid-lt3={} invalid-repeat={} invalid-index={} invalid-quad={} duplicate faces={} isolated vertices={} components={}",
+        "{label}: boundary edges={} non-manifold edges={} invalid-lt3={} invalid-repeat={} invalid-index={} invalid-quad={} isolated vertices={}",
         report.boundary_edges,
-        report.boundary_loops,
         report.nonmanifold_edges,
         report.fewer_than_three_faces,
         report.repeated_vertex_faces,
         report.invalid_vertex_index_faces,
         report.invalid_quad_faces,
-        report.duplicate_faces,
-        report.isolated_vertices,
-        report.connected_components
+        report.isolated_vertices
     );
     if let Some((_, area_ratio, volume_ratio)) = baseline {
         if let Some(value) = area_ratio {

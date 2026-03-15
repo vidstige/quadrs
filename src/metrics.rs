@@ -1,4 +1,4 @@
-use crate::connectivity::{boundary_edges, count_components, face_edges, neighbors_from_edges};
+use crate::connectivity::{boundary_edges, face_edges};
 use crate::geom::quad_is_valid;
 use crate::meshio::{triangulate_faces, ObjMesh, Vec3};
 use std::collections::{HashMap, HashSet};
@@ -14,15 +14,12 @@ pub struct MeshReport {
     pub area: f64,
     pub abs_volume: f64,
     pub boundary_edges: usize,
-    pub boundary_loops: usize,
     pub nonmanifold_edges: usize,
     pub fewer_than_three_faces: usize,
     pub repeated_vertex_faces: usize,
     pub invalid_vertex_index_faces: usize,
     pub invalid_quad_faces: usize,
-    pub duplicate_faces: usize,
     pub isolated_vertices: usize,
-    pub connected_components: usize,
 }
 
 pub fn analyze(mesh: &ObjMesh) -> MeshReport {
@@ -30,13 +27,11 @@ pub fn analyze(mesh: &ObjMesh) -> MeshReport {
     let mut edge_counts = HashMap::<(usize, usize), usize>::new();
     let mut vertex_neighbors = vec![Vec::new(); mesh.vertices.len()];
     let mut used_vertices = vec![false; mesh.vertices.len()];
-    let mut seen_faces = HashSet::<Vec<usize>>::new();
     let mut quad_faces = 0;
     let mut fewer_than_three_faces = 0;
     let mut repeated_vertex_faces = 0;
     let mut invalid_vertex_index_faces = 0;
     let mut invalid_quad_faces = 0;
-    let mut duplicate_faces = 0;
     let mut area = 0.0;
     let mut signed_volume = 0.0;
 
@@ -48,9 +43,6 @@ pub fn analyze(mesh: &ObjMesh) -> MeshReport {
         repeated_vertex_faces += has_repeated_vertex(face) as usize;
         invalid_vertex_index_faces += has_invalid_vertex_index(face, mesh.vertices.len()) as usize;
         invalid_quad_faces += has_invalid_quad(face, &mesh.vertices) as usize;
-        if !seen_faces.insert(canonical_face(face)) {
-            duplicate_faces += 1;
-        }
         for &vertex in face {
             if vertex < used_vertices.len() {
                 used_vertices[vertex] = true;
@@ -77,12 +69,8 @@ pub fn analyze(mesh: &ObjMesh) -> MeshReport {
 
     let boundary_edges_list = boundary_edges(&edge_counts);
     let boundary_edges = boundary_edges_list.len();
-    let boundary_neighbors = neighbors_from_edges(mesh.vertices.len(), &boundary_edges_list);
-    let boundary_active = boundary_neighbors.iter().map(|neighbors| !neighbors.is_empty()).collect::<Vec<_>>();
-    let boundary_loops = count_components(&boundary_neighbors, &boundary_active);
     let nonmanifold_edges = edge_counts.values().filter(|&&count| count > 2).count();
     let isolated_vertices = vertex_neighbors.iter().filter(|neighbors| neighbors.is_empty()).count();
-    let connected_components = count_components(&vertex_neighbors, &used_vertices);
 
     MeshReport {
         vertex_count: mesh.vertices.len(),
@@ -92,15 +80,12 @@ pub fn analyze(mesh: &ObjMesh) -> MeshReport {
         area,
         abs_volume: signed_volume.abs(),
         boundary_edges,
-        boundary_loops,
         nonmanifold_edges,
         fewer_than_three_faces,
         repeated_vertex_faces,
         invalid_vertex_index_faces,
         invalid_quad_faces,
-        duplicate_faces,
         isolated_vertices,
-        connected_components,
     }
 }
 
@@ -126,30 +111,4 @@ fn has_invalid_quad(face: &[usize], vertices: &[Vec3]) -> bool {
         && !has_repeated_vertex(face)
         && !has_invalid_vertex_index(face, vertices.len())
         && !quad_is_valid(vertices, [face[0], face[1], face[2], face[3]])
-}
-
-fn canonical_face(face: &[usize]) -> Vec<usize> {
-    let mut best = rotate_face(face, min_index(face));
-    let reversed: Vec<_> = face.iter().rev().copied().collect();
-    let reversed_best = rotate_face(&reversed, min_index(&reversed));
-    if reversed_best < best {
-        best = reversed_best;
-    }
-    best
-}
-
-fn min_index(face: &[usize]) -> usize {
-    let mut best = 0;
-    for i in 1..face.len() {
-        if face[i] < face[best] {
-            best = i;
-        }
-    }
-    best
-}
-
-fn rotate_face(face: &[usize], shift: usize) -> Vec<usize> {
-    (0..face.len())
-        .map(|i| face[(shift + i) % face.len()])
-        .collect()
 }

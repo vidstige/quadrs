@@ -61,7 +61,7 @@ fn run() -> Result<(), Box<dyn Error>> {
         input_abs_volume,
         seed,
     )?;
-    eprintln!("seed {}", result.seed);
+    eprintln!("seed {}", seed);
     write_obj(&args.output, &result.mesh.vertices, &result.mesh.faces)?;
 
     print_report(
@@ -165,7 +165,6 @@ fn target_scale(args: &Args, surface_area: f64) -> f64 {
 }
 
 struct Candidate {
-    seed: u64,
     mesh: ObjMesh,
 }
 
@@ -197,7 +196,7 @@ fn remesh_once(
         ratio(area(&mesh), input_area).unwrap_or(0.0),
         ratio(abs_volume(&mesh), input_abs_volume).unwrap_or(0.0),
     );
-    Ok(Candidate { seed, mesh })
+    Ok(Candidate { mesh })
 }
 
 fn solve_hierarchy(

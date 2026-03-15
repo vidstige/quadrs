@@ -1,5 +1,6 @@
 use crate::meshio::Vec3;
 use crate::preprocess::Link;
+use crate::rng::Rng;
 use nalgebra::Vector2;
 
 pub type IVec2 = Vector2<i32>;
@@ -35,12 +36,12 @@ pub fn initialize_state(
     adjacency: Vec<Vec<Link>>,
     boundary: Vec<Option<BoundaryConstraint>>,
     scale: f64,
-    seed: u64,
+    rng: Rng,
 ) -> FieldState {
     let orientations = normals
         .iter()
         .enumerate()
-        .map(|(i, normal)| init_random_tangent(*normal, mix_seed(seed, i as u64)))
+        .map(|(i, normal)| init_random_tangent(*normal, rng.mix(i as u64)))
         .collect();
     let origins = positions
         .iter()
@@ -51,7 +52,7 @@ pub fn initialize_state(
                 *position,
                 *normal,
                 scale,
-                mix_seed(seed ^ 0x9e3779b97f4a7c15, i as u64),
+                rng.mix(0x9e3779b97f4a7c15).mix(i as u64),
             )
         })
         .collect();
@@ -324,34 +325,17 @@ pub fn coordinate_system(normal: Vec3) -> (Vec3, Vec3) {
     (b, c)
 }
 
-fn init_random_tangent(normal: Vec3, seed: u64) -> Vec3 {
+fn init_random_tangent(normal: Vec3, rng: Rng) -> Vec3 {
     let (s, t) = coordinate_system(normal);
-    let angle = unit_f64(seed) * std::f64::consts::TAU;
+    let angle = rng.next() * std::f64::consts::TAU;
     s * angle.cos() + t * angle.sin()
 }
 
-fn init_random_origin(position: Vec3, normal: Vec3, scale: f64, seed: u64) -> Vec3 {
+fn init_random_origin(position: Vec3, normal: Vec3, scale: f64, rng: Rng) -> Vec3 {
     let (s, t) = coordinate_system(normal);
-    let x = unit_f64(seed) * 2.0 - 1.0;
-    let y = unit_f64(seed ^ 0x517cc1b727220a95) * 2.0 - 1.0;
+    let x = rng.next() * 2.0 - 1.0;
+    let y = rng.mix(0x517cc1b727220a95).next() * 2.0 - 1.0;
     position + (s * x + t * y) * scale
-}
-
-fn mix_seed(seed: u64, index: u64) -> u64 {
-    hash64(seed ^ index.wrapping_mul(0x9e3779b97f4a7c15))
-}
-
-fn unit_f64(seed: u64) -> f64 {
-    let value = hash64(seed);
-    (value >> 11) as f64 / ((1u64 << 53) as f64)
-}
-
-fn hash64(mut x: u64) -> u64 {
-    x ^= x >> 33;
-    x = x.wrapping_mul(0xff51afd7ed558ccd);
-    x ^= x >> 33;
-    x = x.wrapping_mul(0xc4ceb9fe1a85ec53);
-    x ^ (x >> 33)
 }
 
 pub fn rotate60(d: Vec3, n: Vec3) -> Vec3 {

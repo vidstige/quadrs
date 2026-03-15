@@ -15,11 +15,11 @@ use remesh::field::{
 use remesh::preprocess::{
     compute_dual_vertex_areas, compute_mesh_stats, generate_smooth_normals, generate_uniform_adjacency, preprocess_mesh,
 };
+use remesh::rng::Rng;
 use remesh::topology::{build_directed_edges, TriMesh};
 use std::env;
 use std::error::Error;
 use std::path::PathBuf;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 fn main() {
     if matches!(env::args().nth(1).as_deref(), Some("-h" | "--help")) {
@@ -51,7 +51,7 @@ fn run() -> Result<(), Box<dyn Error>> {
     let areas = compute_dual_vertex_areas(&tri_mesh, &dedges);
     let levels = build_hierarchy(&tri_mesh.vertices, &normals, &areas, &adjacency);
     let boundaries = build_boundary_hierarchy(&levels, build_boundary_constraints(&tri_mesh, &dedges, &normals));
-    let seed = args.seed.unwrap_or_else(current_time_seed);
+    let seed = args.seed.map(Rng::new).unwrap_or_else(Rng::from_time);
     let result = remesh(
         &levels,
         &boundaries,
@@ -175,7 +175,7 @@ fn remesh(
     args: &Args,
     input_area: f64,
     input_abs_volume: f64,
-    seed: u64,
+    seed: Rng,
 ) -> Result<Candidate, Box<dyn Error>> {
     let state = solve_hierarchy(levels, boundaries, scale, args, seed);
     let graph = extract_graph(&state, args.intrinsic);
@@ -204,7 +204,7 @@ fn solve_hierarchy(
     boundaries: &[Vec<Option<BoundaryConstraint>>],
     scale: f64,
     args: &Args,
-    seed: u64,
+    seed: Rng,
 ) -> FieldState {
     let mut states = levels
         .iter()
@@ -216,7 +216,7 @@ fn solve_hierarchy(
                 level.adjacency.clone(),
                 boundaries[i].clone(),
                 scale,
-                seed ^ ((i as u64 + 1) * 0x9e3779b97f4a7c15),
+                seed.mix(i as u64 + 1),
             )
         })
         .collect::<Vec<_>>();
@@ -254,13 +254,6 @@ fn solve_hierarchy(
     optimize_positions_frozen(&mut states[0], &levels[0].phases, args.frozen_position_iters);
 
     states.remove(0)
-}
-
-fn current_time_seed() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_nanos() as u64
 }
 
 fn print_report(label: &str, mesh: &ObjMesh, baseline: Option<(f64, f64)>) {

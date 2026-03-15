@@ -1,7 +1,12 @@
 use remesh::boundary::{build_boundary_constraints, build_boundary_hierarchy};
 use remesh::hierarchy::{build_hierarchy, prolong_origins, prolong_orientations, HierarchyLevel};
 use remesh::meshio::{load_obj, triangulate_faces, write_obj, ObjMesh};
-use remesh::metrics::{analyze, ratio, MeshReport};
+use remesh::metrics::{
+    abs_volume, area, boundary_edge_count, face_count, fewer_than_three_face_count,
+    invalid_quad_face_count, invalid_vertex_index_face_count, isolated_vertex_count,
+    non_quad_face_count, nonmanifold_edge_count, quad_face_count, ratio,
+    repeated_vertex_face_count, vertex_count,
+};
 use remesh::graph::extract_graph;
 use remesh::field::{
     freeze_orientation_ivars, freeze_position_ivars, initialize_state, optimize_orientations,
@@ -30,8 +35,9 @@ fn main() {
 fn run() -> Result<(), Box<dyn Error>> {
     let args = parse_args(env::args().skip(1))?;
     let input = load_obj(&args.input)?;
-    let input_report = analyze(&input);
-    print_report("input", &input_report, None);
+    let input_area = area(&input);
+    let input_abs_volume = abs_volume(&input);
+    print_report("input", &input, None);
 
     let tri_mesh = TriMesh {
         vertices: input.vertices,
@@ -51,21 +57,17 @@ fn run() -> Result<(), Box<dyn Error>> {
         &boundaries,
         scale,
         &args,
-        &input_report,
+        input_area,
+        input_abs_volume,
         seed,
     )?;
     eprintln!("seed {}", result.seed);
     write_obj(&args.output, &result.mesh.vertices, &result.mesh.faces)?;
 
-    let output_report = result.report;
     print_report(
         "output",
-        &output_report,
-        Some((
-            &input_report,
-            ratio(output_report.area, input_report.area),
-            ratio(output_report.abs_volume, input_report.abs_volume),
-        )),
+        &result.mesh,
+        Some((input_area, input_abs_volume)),
     );
     Ok(())
 }
@@ -165,7 +167,6 @@ fn target_scale(args: &Args, surface_area: f64) -> f64 {
 struct Candidate {
     seed: u64,
     mesh: ObjMesh,
-    report: MeshReport,
 }
 
 fn remesh_once(
@@ -173,7 +174,8 @@ fn remesh_once(
     boundaries: &[Vec<Option<BoundaryConstraint>>],
     scale: f64,
     args: &Args,
-    input_report: &MeshReport,
+    input_area: f64,
+    input_abs_volume: f64,
     seed: u64,
 ) -> Result<Candidate, Box<dyn Error>> {
     let state = solve_hierarchy(levels, boundaries, scale, args, seed);
@@ -183,20 +185,19 @@ fn remesh_once(
         vertices: quad_mesh.positions,
         faces: quad_mesh.quads.into_iter().map(|face| face.to_vec()).collect(),
     };
-    let report = analyze(&mesh);
     eprintln!(
         "seed {}: F={} boundary={} invalid-lt3={} invalid-repeat={} invalid-index={} invalid-quad={} area-ratio={:.3} volume-ratio={:.3}",
         seed,
-        report.face_count,
-        report.boundary_edges,
-        report.fewer_than_three_faces,
-        report.repeated_vertex_faces,
-        report.invalid_vertex_index_faces,
-        report.invalid_quad_faces,
-        ratio(report.area, input_report.area).unwrap_or(0.0),
-        ratio(report.abs_volume, input_report.abs_volume).unwrap_or(0.0),
+        face_count(&mesh),
+        boundary_edge_count(&mesh),
+        fewer_than_three_face_count(&mesh),
+        repeated_vertex_face_count(&mesh),
+        invalid_vertex_index_face_count(&mesh),
+        invalid_quad_face_count(&mesh),
+        ratio(area(&mesh), input_area).unwrap_or(0.0),
+        ratio(abs_volume(&mesh), input_abs_volume).unwrap_or(0.0),
     );
-    Ok(Candidate { seed, mesh, report })
+    Ok(Candidate { seed, mesh })
 }
 
 fn solve_hierarchy(
@@ -263,26 +264,33 @@ fn current_time_seed() -> u64 {
         .as_nanos() as u64
 }
 
-fn print_report(label: &str, report: &MeshReport, baseline: Option<(&MeshReport, Option<f64>, Option<f64>)>) {
+fn print_report(label: &str, mesh: &ObjMesh, baseline: Option<(f64, f64)>) {
+    let mesh_area = area(mesh);
+    let mesh_abs_volume = abs_volume(mesh);
     eprintln!(
         "{label}: V={} F={} quads={} non-quads={} area={:.9} abs-volume={:.9}",
-        report.vertex_count, report.face_count, report.quad_faces, report.non_quad_faces, report.area, report.abs_volume
+        vertex_count(mesh),
+        face_count(mesh),
+        quad_face_count(mesh),
+        non_quad_face_count(mesh),
+        mesh_area,
+        mesh_abs_volume,
     );
     eprintln!(
         "{label}: boundary edges={} non-manifold edges={} invalid-lt3={} invalid-repeat={} invalid-index={} invalid-quad={} isolated vertices={}",
-        report.boundary_edges,
-        report.nonmanifold_edges,
-        report.fewer_than_three_faces,
-        report.repeated_vertex_faces,
-        report.invalid_vertex_index_faces,
-        report.invalid_quad_faces,
-        report.isolated_vertices
+        boundary_edge_count(mesh),
+        nonmanifold_edge_count(mesh),
+        fewer_than_three_face_count(mesh),
+        repeated_vertex_face_count(mesh),
+        invalid_vertex_index_face_count(mesh),
+        invalid_quad_face_count(mesh),
+        isolated_vertex_count(mesh),
     );
-    if let Some((_, area_ratio, volume_ratio)) = baseline {
-        if let Some(value) = area_ratio {
+    if let Some((input_area, input_abs_volume)) = baseline {
+        if let Some(value) = ratio(mesh_area, input_area) {
             eprintln!("{label}: area ratio vs input = {:.3}", value);
         }
-        if let Some(value) = volume_ratio {
+        if let Some(value) = ratio(mesh_abs_volume, input_abs_volume) {
             eprintln!("{label}: volume ratio vs input = {:.3}", value);
         }
     }

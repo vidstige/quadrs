@@ -1,7 +1,7 @@
 use crate::meshio::Vec3;
 use crate::extract::{EmbeddedGraph, TaggedLink};
 use crate::field::{
-    orientation_compat, position_index_compat, NativeState,
+    orientation_compat, position_index_compat, FieldState,
 };
 use std::collections::{HashMap, HashSet};
 
@@ -12,7 +12,7 @@ struct CollapseEdge {
     error: f64,
 }
 
-pub fn extract_graph(state: &NativeState, intrinsic: bool) -> EmbeddedGraph {
+pub fn extract_graph(state: &FieldState, intrinsic: bool) -> EmbeddedGraph {
     let inv_scale = 1.0 / state.scale;
     let orient_compat = orientation_compat(intrinsic);
     let position_compat = position_index_compat(intrinsic);

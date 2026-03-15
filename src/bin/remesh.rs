@@ -10,7 +10,7 @@ use remesh::metrics::{
 use remesh::graph::extract_graph;
 use remesh::field::{
     freeze_orientation_ivars, freeze_position_ivars, initialize_state, optimize_orientations,
-    optimize_orientations_frozen, optimize_positions, optimize_positions_frozen, BoundaryConstraint, NativeState,
+    optimize_orientations_frozen, optimize_positions, optimize_positions_frozen, BoundaryConstraint, FieldState,
 };
 use remesh::preprocess::{
     compute_dual_vertex_areas, compute_mesh_stats, generate_smooth_normals, generate_uniform_adjacency, preprocess_mesh,
@@ -206,7 +206,7 @@ fn solve_hierarchy(
     scale: f64,
     args: &Args,
     seed: u64,
-) -> NativeState {
+) -> FieldState {
     let mut states = levels
         .iter()
         .enumerate()

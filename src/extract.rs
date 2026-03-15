@@ -45,7 +45,7 @@ pub struct ExtractionStats {
     pub degree_histogram: HashMap<usize, usize>,
 }
 
-pub struct NativeExtractedMesh {
+pub struct ExtractedMesh {
     pub positions: Vec<Vec3>,
     pub quads: Vec<[usize; 4]>,
     pub crease: HashSet<usize>,
@@ -80,7 +80,7 @@ impl EmbeddedGraph {
         }
     }
 
-    pub fn extract_pure_quad_mesh(&self, posy: usize, fill_holes: bool) -> NativeExtractedMesh {
+    pub fn extract_pure_quad_mesh(&self, posy: usize, fill_holes: bool) -> ExtractedMesh {
         let mut adjacency = self.adjacency.clone();
         let mut stats = ExtractionStats::default();
         let mut regular_faces = Vec::<[usize; 4]>::new();
@@ -143,7 +143,7 @@ impl EmbeddedGraph {
             &irregular_cycles,
         );
 
-        NativeExtractedMesh {
+        ExtractedMesh {
             positions,
             quads,
             crease,

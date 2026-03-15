@@ -19,7 +19,7 @@ pub struct BoundaryConstraint {
     pub weight: f64,
 }
 
-pub struct NativeState {
+pub struct FieldState {
     pub positions: Vec<Vec3>,
     pub normals: Vec<Vec3>,
     pub orientations: Vec<Vec3>,
@@ -36,7 +36,7 @@ pub fn initialize_state(
     boundary: Vec<Option<BoundaryConstraint>>,
     scale: f64,
     seed: u64,
-) -> NativeState {
+) -> FieldState {
     let orientations = normals
         .iter()
         .enumerate()
@@ -55,7 +55,7 @@ pub fn initialize_state(
             )
         })
         .collect();
-    NativeState {
+    FieldState {
         positions,
         normals,
         orientations,
@@ -92,7 +92,7 @@ pub fn greedy_color(adjacency: &[Vec<Link>]) -> Vec<Vec<usize>> {
     phases
 }
 
-pub fn optimize_orientations(state: &mut NativeState, phases: &[Vec<usize>], iterations: usize, intrinsic: bool) {
+pub fn optimize_orientations(state: &mut FieldState, phases: &[Vec<usize>], iterations: usize, intrinsic: bool) {
     let compat = orientation_compat(intrinsic);
     for _ in 0..iterations {
         let prev = state.orientations.clone();
@@ -131,7 +131,7 @@ pub fn optimize_orientations(state: &mut NativeState, phases: &[Vec<usize>], ite
     }
 }
 
-pub fn optimize_positions(state: &mut NativeState, phases: &[Vec<usize>], iterations: usize, intrinsic: bool) {
+pub fn optimize_positions(state: &mut FieldState, phases: &[Vec<usize>], iterations: usize, intrinsic: bool) {
     let inv_scale = 1.0 / state.scale;
     let compat = position_compat(intrinsic);
     for _ in 0..iterations {
@@ -179,7 +179,7 @@ pub fn optimize_positions(state: &mut NativeState, phases: &[Vec<usize>], iterat
     }
 }
 
-pub fn freeze_orientation_ivars(state: &mut NativeState, intrinsic: bool) {
+pub fn freeze_orientation_ivars(state: &mut FieldState, intrinsic: bool) {
     let compat = orientation_index_compat(intrinsic);
     for i in 0..state.positions.len() {
         let q_i = normalize_or(state.orientations[i], state.orientations[i]);
@@ -194,7 +194,7 @@ pub fn freeze_orientation_ivars(state: &mut NativeState, intrinsic: bool) {
     }
 }
 
-pub fn optimize_orientations_frozen(state: &mut NativeState, phases: &[Vec<usize>], iterations: usize) {
+pub fn optimize_orientations_frozen(state: &mut FieldState, phases: &[Vec<usize>], iterations: usize) {
     for _ in 0..iterations {
         let prev = state.orientations.clone();
         for phase in phases {
@@ -221,7 +221,7 @@ pub fn optimize_orientations_frozen(state: &mut NativeState, phases: &[Vec<usize
     }
 }
 
-pub fn freeze_position_ivars(state: &mut NativeState, intrinsic: bool) {
+pub fn freeze_position_ivars(state: &mut FieldState, intrinsic: bool) {
     let inv_scale = 1.0 / state.scale;
     let compat = position_index_compat(intrinsic);
     for i in 0..state.positions.len() {
@@ -273,7 +273,7 @@ pub(crate) fn position_index_compat(intrinsic: bool) -> PositionIndexCompatFn {
     }
 }
 
-pub fn optimize_positions_frozen(state: &mut NativeState, phases: &[Vec<usize>], iterations: usize) {
+pub fn optimize_positions_frozen(state: &mut FieldState, phases: &[Vec<usize>], iterations: usize) {
     for _ in 0..iterations {
         let prev = state.origins.clone();
         for phase in phases {

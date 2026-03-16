@@ -28,6 +28,11 @@ pub struct FieldState {
     pub scale: f64,
 }
 
+struct OrientationMatch {
+    lhs: (Vec3, i32),
+    rhs: (Vec3, i32),
+}
+
 pub trait RoSy4 {
     fn match_orientation(q0: Vec3, n0: Vec3, q1: Vec3, n1: Vec3) -> (Vec3, Vec3);
     fn match_orientation_index(q0: Vec3, n0: Vec3, q1: Vec3, n1: Vec3) -> (i32, i32);
@@ -62,26 +67,13 @@ pub struct Intrinsic;
 
 impl RoSy4 for Intrinsic {
     fn match_orientation(q0: Vec3, n0: Vec3, q1: Vec3, n1: Vec3) -> (Vec3, Vec3) {
-        let q1 = rotate_vector_into_plane(q1, n1, n0);
-        let t1 = n0.cross(&q1);
-        let dp0 = q1.dot(&q0);
-        let dp1 = t1.dot(&q0);
-        if dp0.abs() > dp1.abs() {
-            (q0, q1 * dp0.signum())
-        } else {
-            (q0, t1 * dp1.signum())
-        }
+        let m = match_intrinsic_orientation(q0, n0, q1, n1);
+        (m.lhs.0, m.rhs.0)
     }
 
     fn match_orientation_index(q0: Vec3, n0: Vec3, q1: Vec3, n1: Vec3) -> (i32, i32) {
-        let q1 = rotate_vector_into_plane(q1, n1, n0);
-        let dp0 = q1.dot(&q0);
-        let dp1 = n0.cross(&q1).dot(&q0);
-        if dp0.abs() > dp1.abs() {
-            (0, if dp0 > 0.0 { 0 } else { 2 })
-        } else {
-            (0, if dp1 > 0.0 { 1 } else { 3 })
-        }
+        let m = match_intrinsic_orientation(q0, n0, q1, n1);
+        (m.lhs.1, m.rhs.1)
     }
 
     fn match_position(
@@ -147,38 +139,13 @@ pub struct Extrinsic;
 
 impl RoSy4 for Extrinsic {
     fn match_orientation(q0: Vec3, n0: Vec3, q1: Vec3, n1: Vec3) -> (Vec3, Vec3) {
-        let a = [q0, n0.cross(&q0)];
-        let b = [q1, n1.cross(&q1)];
-        let mut best = (0usize, 0usize, f64::NEG_INFINITY);
-        for i in 0..2 {
-            for j in 0..2 {
-                let score = a[i].dot(&b[j]).abs();
-                if score > best.2 {
-                    best = (i, j, score);
-                }
-            }
-        }
-        let dp = a[best.0].dot(&b[best.1]);
-        (a[best.0], b[best.1] * dp.signum())
+        let m = match_extrinsic_orientation(q0, n0, q1, n1);
+        (m.lhs.0, m.rhs.0)
     }
 
     fn match_orientation_index(q0: Vec3, n0: Vec3, q1: Vec3, n1: Vec3) -> (i32, i32) {
-        let a = [q0, n0.cross(&q0)];
-        let b = [q1, n1.cross(&q1)];
-        let mut best = (0usize, 0usize, f64::NEG_INFINITY);
-        for i in 0..2 {
-            for j in 0..2 {
-                let score = a[i].dot(&b[j]).abs();
-                if score > best.2 {
-                    best = (i, j, score);
-                }
-            }
-        }
-        let mut best_b = best.1 as i32;
-        if a[best.0].dot(&b[best.1]) < 0.0 {
-            best_b += 2;
-        }
-        (best.0 as i32, best_b)
+        let m = match_extrinsic_orientation(q0, n0, q1, n1);
+        (m.lhs.1, m.rhs.1)
     }
 
     fn match_position(
@@ -558,6 +525,43 @@ fn middle_point(p0: Vec3, n0: Vec3, p1: Vec3, n1: Vec3) -> Vec3 {
     let lambda0 = 2.0 * (n0p1 - n0p0 - n0n1 * (n1p0 - n1p1)) * denom;
     let lambda1 = 2.0 * (n1p0 - n1p1 - n0n1 * (n0p1 - n0p0)) * denom;
     (p0 + p1) * 0.5 - (n0 * lambda0 + n1 * lambda1) * 0.25
+}
+
+fn match_intrinsic_orientation(q0: Vec3, n0: Vec3, q1: Vec3, n1: Vec3) -> OrientationMatch {
+    let q1 = rotate_vector_into_plane(q1, n1, n0);
+    let t1 = n0.cross(&q1);
+    let dp0 = q1.dot(&q0);
+    let dp1 = t1.dot(&q0);
+    if dp0.abs() > dp1.abs() {
+        OrientationMatch {
+            lhs: (q0, 0),
+            rhs: (q1 * dp0.signum(), if dp0 > 0.0 { 0 } else { 2 }),
+        }
+    } else {
+        OrientationMatch {
+            lhs: (q0, 0),
+            rhs: (t1 * dp1.signum(), if dp1 > 0.0 { 1 } else { 3 }),
+        }
+    }
+}
+
+fn match_extrinsic_orientation(q0: Vec3, n0: Vec3, q1: Vec3, n1: Vec3) -> OrientationMatch {
+    let a = [q0, n0.cross(&q0)];
+    let b = [q1, n1.cross(&q1)];
+    let mut best = (0usize, 0usize, f64::NEG_INFINITY);
+    for i in 0..2 {
+        for j in 0..2 {
+            let score = a[i].dot(&b[j]).abs();
+            if score > best.2 {
+                best = (i, j, score);
+            }
+        }
+    }
+    let dp = a[best.0].dot(&b[best.1]);
+    OrientationMatch {
+        lhs: (a[best.0], best.0 as i32),
+        rhs: (b[best.1] * dp.signum(), best.1 as i32 + if dp < 0.0 { 2 } else { 0 }),
+    }
 }
 
 fn position_floor_4(o: Vec3, q: Vec3, n: Vec3, p: Vec3, scale: f64, inv_scale: f64) -> Vec3 {

@@ -28,7 +28,7 @@ pub struct FieldState {
     pub scale: f64,
 }
 
-pub trait CompatMode {
+pub trait RoSy4 {
     fn orientation_compat(q0: Vec3, n0: Vec3, q1: Vec3, n1: Vec3) -> (Vec3, Vec3);
     fn orientation_index_compat(q0: Vec3, n0: Vec3, q1: Vec3, n1: Vec3) -> (i32, i32);
     fn position_compat(
@@ -57,9 +57,10 @@ pub trait CompatMode {
     ) -> (IVec2, IVec2, f64);
 }
 
+#[derive(Clone, Copy)]
 pub struct Intrinsic;
 
-impl CompatMode for Intrinsic {
+impl RoSy4 for Intrinsic {
     fn orientation_compat(q0: Vec3, n0: Vec3, q1: Vec3, n1: Vec3) -> (Vec3, Vec3) {
         compat_orientation_intrinsic_4(q0, n0, q1, n1)
     }
@@ -99,9 +100,10 @@ impl CompatMode for Intrinsic {
     }
 }
 
+#[derive(Clone, Copy)]
 pub struct Extrinsic;
 
-impl CompatMode for Extrinsic {
+impl RoSy4 for Extrinsic {
     fn orientation_compat(q0: Vec3, n0: Vec3, q1: Vec3, n1: Vec3) -> (Vec3, Vec3) {
         compat_orientation_extrinsic_4(q0, n0, q1, n1)
     }
@@ -204,7 +206,7 @@ pub fn greedy_color(adjacency: &[Vec<Link>]) -> Vec<Vec<usize>> {
     phases
 }
 
-pub fn optimize_orientations<M: CompatMode>(state: &mut FieldState, phases: &[Vec<usize>], iterations: usize) {
+pub fn optimize_orientations<M: RoSy4>(state: &mut FieldState, phases: &[Vec<usize>], iterations: usize) {
     for _ in 0..iterations {
         let prev = state.orientations.clone();
         for phase in phases {
@@ -242,7 +244,7 @@ pub fn optimize_orientations<M: CompatMode>(state: &mut FieldState, phases: &[Ve
     }
 }
 
-pub fn optimize_positions<M: CompatMode>(state: &mut FieldState, phases: &[Vec<usize>], iterations: usize) {
+pub fn optimize_positions<M: RoSy4>(state: &mut FieldState, phases: &[Vec<usize>], iterations: usize) {
     let inv_scale = 1.0 / state.scale;
     for _ in 0..iterations {
         let prev = state.origins.clone();
@@ -289,7 +291,7 @@ pub fn optimize_positions<M: CompatMode>(state: &mut FieldState, phases: &[Vec<u
     }
 }
 
-pub fn freeze_orientation_ivars<M: CompatMode>(state: &mut FieldState) {
+pub fn freeze_orientation_ivars<M: RoSy4>(state: &mut FieldState) {
     for i in 0..state.positions.len() {
         let q_i = normalize_or(state.orientations[i], state.orientations[i]);
         let n_i = state.normals[i];
@@ -330,7 +332,7 @@ pub fn optimize_orientations_frozen(state: &mut FieldState, phases: &[Vec<usize>
     }
 }
 
-pub fn freeze_position_ivars<M: CompatMode>(state: &mut FieldState) {
+pub fn freeze_position_ivars<M: RoSy4>(state: &mut FieldState) {
     let inv_scale = 1.0 / state.scale;
     for i in 0..state.positions.len() {
         let n_i = state.normals[i];

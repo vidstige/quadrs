@@ -1,7 +1,7 @@
 use crate::meshio::Vec3;
 use crate::extract::{EmbeddedGraph, TaggedLink};
 use crate::field::{
-    CompatMode, FieldState,
+    FieldState, RoSy4,
 };
 use std::collections::{HashMap, HashSet};
 
@@ -12,7 +12,7 @@ struct CollapseEdge {
     error: f64,
 }
 
-pub fn extract_graph<M: CompatMode>(state: &FieldState) -> EmbeddedGraph {
+pub fn extract_graph<M: RoSy4>(state: &FieldState, _mode: M) -> EmbeddedGraph {
     let inv_scale = 1.0 / state.scale;
     let mut adjacency = vec![HashSet::<usize>::new(); state.positions.len()];
     let mut collapse_edges = Vec::new();

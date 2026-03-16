@@ -10,7 +10,7 @@ use remesh::metrics::{
 use remesh::graph::extract_graph;
 use remesh::field::{
     freeze_orientation_ivars, freeze_position_ivars, initialize_state, optimize_orientations,
-    optimize_orientations_frozen, optimize_positions, optimize_positions_frozen, BoundaryConstraint, CompatMode,
+    optimize_orientations_frozen, optimize_positions, optimize_positions_frozen, BoundaryConstraint, RoSy4,
     Extrinsic, FieldState, Intrinsic,
 };
 use remesh::preprocess::{
@@ -181,11 +181,13 @@ fn remesh(
     seed: Rng,
 ) -> Result<Candidate, Box<dyn Error>> {
     let graph = if args.intrinsic {
-        let state = solve_hierarchy::<Intrinsic>(levels, boundaries, scale, args, seed);
-        extract_graph::<Intrinsic>(&state)
+        let mode = Intrinsic;
+        let state = solve_hierarchy(levels, boundaries, scale, args, seed, mode);
+        extract_graph(&state, mode)
     } else {
-        let state = solve_hierarchy::<Extrinsic>(levels, boundaries, scale, args, seed);
-        extract_graph::<Extrinsic>(&state)
+        let mode = Extrinsic;
+        let state = solve_hierarchy(levels, boundaries, scale, args, seed, mode);
+        extract_graph(&state, mode)
     };
     let quad_mesh = graph.extract_pure_quad_mesh(4, true);
     let mesh = ObjMesh {
@@ -207,12 +209,13 @@ fn remesh(
     Ok(Candidate { mesh })
 }
 
-fn solve_hierarchy<M: CompatMode>(
+fn solve_hierarchy<M: RoSy4>(
     levels: &[HierarchyLevel],
     boundaries: &[Vec<Option<BoundaryConstraint>>],
     scale: f64,
     args: &Args,
     seed: Rng,
+    _mode: M,
 ) -> FieldState {
     let mut states = levels
         .iter()

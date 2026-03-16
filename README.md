@@ -20,6 +20,14 @@ cargo run --release --bin remesh -- input.obj -o output.obj --target-faces 3000
 
 Use `--seed 1337` to make a run reproducible. If `--seed` is omitted, `remesh` seeds itself from the current system time.
 
+Run an end-to-end remesh check:
+
+```bash
+sh/test-remesh.sh teapot --target-faces 1000 --seed 1337
+```
+
+It uses `meshes/<name>.obj` when present. For known public meshes such as `teapot`, it downloads `meshes/<name>.obj` on first run, builds `remesh` in release mode, and writes `meshes/<name>-remeshed.obj`.
+
 Useful tools:
 
 ```bash

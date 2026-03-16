@@ -27,6 +27,21 @@ pub struct FieldState {
     pub scale: f64,
 }
 
+/// Local tangent frame: `q` is one RoSy axis and `n` is the surface normal.
+#[derive(Clone, Copy)]
+pub struct Frame {
+    pub q: Vec3,
+    pub n: Vec3,
+}
+
+/// Local sample: vertex position `p`, lattice origin `o`, and its tangent frame.
+#[derive(Clone, Copy)]
+pub struct Sample {
+    pub p: Vec3,
+    pub o: Vec3,
+    pub frame: Frame,
+}
+
 pub struct OrientationMatch {
     pub lhs: (Vec3, i32),
     pub rhs: (Vec3, i32),
@@ -39,64 +54,31 @@ pub struct PositionMatch {
 }
 
 pub trait RoSy4 {
-    fn match_orientation(q0: Vec3, n0: Vec3, q1: Vec3, n1: Vec3) -> OrientationMatch;
-    fn match_position(
-        p0: Vec3,
-        n0: Vec3,
-        q0: Vec3,
-        o0: Vec3,
-        p1: Vec3,
-        n1: Vec3,
-        q1: Vec3,
-        o1: Vec3,
-        scale: f64,
-        inv_scale: f64,
-    ) -> PositionMatch;
+    fn match_orientation(lhs: Frame, rhs: Frame) -> OrientationMatch;
+    fn match_position(lhs: Sample, rhs: Sample, scale: f64, inv_scale: f64) -> PositionMatch;
 }
 
 pub struct Intrinsic;
 
 impl RoSy4 for Intrinsic {
-    fn match_orientation(q0: Vec3, n0: Vec3, q1: Vec3, n1: Vec3) -> OrientationMatch {
-        match_intrinsic_orientation(q0, n0, q1, n1)
+    fn match_orientation(lhs: Frame, rhs: Frame) -> OrientationMatch {
+        match_intrinsic_orientation(lhs, rhs)
     }
 
-    fn match_position(
-        p0: Vec3,
-        n0: Vec3,
-        _q0: Vec3,
-        o0: Vec3,
-        p1: Vec3,
-        n1: Vec3,
-        q1: Vec3,
-        o1: Vec3,
-        scale: f64,
-        inv_scale: f64,
-    ) -> PositionMatch {
-        match_intrinsic_position(p0, n0, o0, p1, n1, q1, o1, scale, inv_scale)
+    fn match_position(lhs: Sample, rhs: Sample, scale: f64, inv_scale: f64) -> PositionMatch {
+        match_intrinsic_position(lhs, rhs, scale, inv_scale)
     }
 }
 
 pub struct Extrinsic;
 
 impl RoSy4 for Extrinsic {
-    fn match_orientation(q0: Vec3, n0: Vec3, q1: Vec3, n1: Vec3) -> OrientationMatch {
-        match_extrinsic_orientation(q0, n0, q1, n1)
+    fn match_orientation(lhs: Frame, rhs: Frame) -> OrientationMatch {
+        match_extrinsic_orientation(lhs, rhs)
     }
 
-    fn match_position(
-        p0: Vec3,
-        n0: Vec3,
-        q0: Vec3,
-        o0: Vec3,
-        p1: Vec3,
-        n1: Vec3,
-        q1: Vec3,
-        o1: Vec3,
-        scale: f64,
-        inv_scale: f64,
-    ) -> PositionMatch {
-        match_extrinsic_position(p0, n0, q0, o0, p1, n1, q1, o1, scale, inv_scale)
+    fn match_position(lhs: Sample, rhs: Sample, scale: f64, inv_scale: f64) -> PositionMatch {
+        match_extrinsic_position(lhs, rhs, scale, inv_scale)
     }
 }
 
@@ -175,7 +157,15 @@ pub fn optimize_orientations<M: RoSy4>(state: &mut FieldState, phases: &[Vec<usi
                     if link.weight == 0.0 {
                         continue;
                     }
-                    let aligned = M::match_orientation(sum, n_i, prev[link.id], state.normals[link.id]).rhs.0;
+                    let aligned = M::match_orientation(
+                        Frame { q: sum, n: n_i },
+                        Frame {
+                            q: prev[link.id],
+                            n: state.normals[link.id],
+                        },
+                    )
+                    .rhs
+                    .0;
                     sum = sum * weight_sum + aligned * link.weight;
                     sum -= n_i * n_i.dot(&sum);
                     weight_sum += link.weight;
@@ -185,7 +175,15 @@ pub fn optimize_orientations<M: RoSy4>(state: &mut FieldState, phases: &[Vec<usi
                     }
                 }
                 if let Some(boundary) = &state.boundary[i] {
-                    let aligned = M::match_orientation(sum, n_i, boundary.tangent, n_i).rhs.0;
+                    let aligned = M::match_orientation(
+                        Frame { q: sum, n: n_i },
+                        Frame {
+                            q: boundary.tangent,
+                            n: n_i,
+                        },
+                    )
+                    .rhs
+                    .0;
                     sum = sum * (1.0 - boundary.weight) + aligned * boundary.weight;
                     sum -= n_i * n_i.dot(&sum);
                     let norm = sum.norm();
@@ -219,14 +217,19 @@ pub fn optimize_positions<M: RoSy4>(state: &mut FieldState, phases: &[Vec<usize>
                     let j = link.id;
                     let q_j = normalize_or(state.orientations[j], state.orientations[j]);
                     let aligned = M::match_position(
-                        v_i,
-                        n_i,
-                        q_i,
-                        sum,
-                        state.positions[j],
-                        state.normals[j],
-                        q_j,
-                        prev[j],
+                        Sample {
+                            p: v_i,
+                            o: sum,
+                            frame: Frame { q: q_i, n: n_i },
+                        },
+                        Sample {
+                            p: state.positions[j],
+                            o: prev[j],
+                            frame: Frame {
+                                q: q_j,
+                                n: state.normals[j],
+                            },
+                        },
                         state.scale,
                         inv_scale,
                     )
@@ -258,7 +261,7 @@ pub fn freeze_orientation_ivars<M: RoSy4>(state: &mut FieldState) {
             let j = link.id;
             let q_j = normalize_or(state.orientations[j], state.orientations[j]);
             let n_j = state.normals[j];
-            let m = M::match_orientation(q_i, n_i, q_j, n_j);
+            let m = M::match_orientation(Frame { q: q_i, n: n_i }, Frame { q: q_j, n: n_j });
             link.rot = [m.lhs.1 as i8, m.rhs.1 as i8];
         }
     }
@@ -304,7 +307,20 @@ pub fn freeze_position_ivars<M: RoSy4>(state: &mut FieldState) {
             let v_j = state.positions[j];
             let q_j = normalize_or(state.orientations[j], state.orientations[j]);
             let o_j = state.origins[j];
-            let m = M::match_position(v_i, n_i, q_i, o_i, v_j, n_j, q_j, o_j, state.scale, inv_scale);
+            let m = M::match_position(
+                Sample {
+                    p: v_i,
+                    o: o_i,
+                    frame: Frame { q: q_i, n: n_i },
+                },
+                Sample {
+                    p: v_j,
+                    o: o_j,
+                    frame: Frame { q: q_j, n: n_j },
+                },
+                state.scale,
+                inv_scale,
+            );
             link.shift = [m.lhs.1, m.rhs.1];
         }
     }
@@ -402,27 +418,27 @@ fn middle_point(p0: Vec3, n0: Vec3, p1: Vec3, n1: Vec3) -> Vec3 {
     (p0 + p1) * 0.5 - (n0 * lambda0 + n1 * lambda1) * 0.25
 }
 
-fn match_intrinsic_orientation(q0: Vec3, n0: Vec3, q1: Vec3, n1: Vec3) -> OrientationMatch {
-    let q1 = rotate_vector_into_plane(q1, n1, n0);
-    let t1 = n0.cross(&q1);
-    let dp0 = q1.dot(&q0);
-    let dp1 = t1.dot(&q0);
+fn match_intrinsic_orientation(lhs: Frame, rhs: Frame) -> OrientationMatch {
+    let q1 = rotate_vector_into_plane(rhs.q, rhs.n, lhs.n);
+    let t1 = lhs.n.cross(&q1);
+    let dp0 = q1.dot(&lhs.q);
+    let dp1 = t1.dot(&lhs.q);
     if dp0.abs() > dp1.abs() {
         OrientationMatch {
-            lhs: (q0, 0),
+            lhs: (lhs.q, 0),
             rhs: (q1 * dp0.signum(), if dp0 > 0.0 { 0 } else { 2 }),
         }
     } else {
         OrientationMatch {
-            lhs: (q0, 0),
+            lhs: (lhs.q, 0),
             rhs: (t1 * dp1.signum(), if dp1 > 0.0 { 1 } else { 3 }),
         }
     }
 }
 
-fn match_extrinsic_orientation(q0: Vec3, n0: Vec3, q1: Vec3, n1: Vec3) -> OrientationMatch {
-    let a = [q0, n0.cross(&q0)];
-    let b = [q1, n1.cross(&q1)];
+fn match_extrinsic_orientation(lhs: Frame, rhs: Frame) -> OrientationMatch {
+    let a = [lhs.q, lhs.n.cross(&lhs.q)];
+    let b = [rhs.q, rhs.n.cross(&rhs.q)];
     let mut best = (0usize, 0usize, f64::NEG_INFINITY);
     for i in 0..2 {
         for j in 0..2 {
@@ -439,23 +455,13 @@ fn match_extrinsic_orientation(q0: Vec3, n0: Vec3, q1: Vec3, n1: Vec3) -> Orient
     }
 }
 
-fn match_intrinsic_position(
-    p0: Vec3,
-    n0: Vec3,
-    o0: Vec3,
-    p1: Vec3,
-    n1: Vec3,
-    q1: Vec3,
-    o1: Vec3,
-    scale: f64,
-    inv_scale: f64,
-) -> PositionMatch {
-    let (q1, o1) = transport_intrinsic_position(p0, n0, p1, n1, q1, o1);
-    let rhs = position_round_4(o1, q1, n0, o0, scale, inv_scale);
+fn match_intrinsic_position(lhs: Sample, rhs: Sample, scale: f64, inv_scale: f64) -> PositionMatch {
+    let (q1, o1) = transport_intrinsic_position(lhs, rhs);
+    let rhs_position = position_round_4(o1, q1, lhs.frame.n, lhs.o, scale, inv_scale);
     PositionMatch {
-        lhs: (o0, IVec2::new(0, 0)),
-        rhs: (rhs, position_round_index_4(o1, q1, n0, o0, inv_scale)),
-        error: (o0 - rhs).norm_squared(),
+        lhs: (lhs.o, IVec2::new(0, 0)),
+        rhs: (rhs_position, position_round_index_4(o1, q1, lhs.frame.n, lhs.o, inv_scale)),
+        error: (lhs.o - rhs_position).norm_squared(),
     }
 }
 
@@ -482,19 +488,14 @@ fn position_round_index_4(o: Vec3, q: Vec3, n: Vec3, p: Vec3, inv_scale: f64) ->
     IVec2::new((q.dot(&d) * inv_scale).round() as i32, (t.dot(&d) * inv_scale).round() as i32)
 }
 
-fn transport_intrinsic_position(
-    p0: Vec3,
-    n0: Vec3,
-    p1: Vec3,
-    n1: Vec3,
-    mut q1: Vec3,
-    mut o1: Vec3,
-) -> (Vec3, Vec3) {
-    let cos_theta = n1.dot(&n0);
+fn transport_intrinsic_position(lhs: Sample, rhs: Sample) -> (Vec3, Vec3) {
+    let mut q1 = rhs.frame.q;
+    let mut o1 = rhs.o;
+    let cos_theta = rhs.frame.n.dot(&lhs.frame.n);
     if cos_theta < 0.9999 {
-        let axis = n1.cross(&n0);
+        let axis = rhs.frame.n.cross(&lhs.frame.n);
         let factor = (1.0 - cos_theta) / axis.dot(&axis).max(EPS);
-        let middle = middle_point(p0, n0, p1, n1);
+        let middle = middle_point(lhs.p, lhs.frame.n, rhs.p, rhs.frame.n);
         o1 -= middle;
         q1 = q1 * cos_theta + axis.cross(&q1) + axis * (axis.dot(&q1) * factor);
         o1 = o1 * cos_theta + axis.cross(&o1) + axis * (axis.dot(&o1) * factor) + middle;
@@ -502,39 +503,34 @@ fn transport_intrinsic_position(
     (q1, o1)
 }
 
-fn match_extrinsic_position(
-    p0: Vec3,
-    n0: Vec3,
-    q0: Vec3,
-    o0: Vec3,
-    p1: Vec3,
-    n1: Vec3,
-    q1: Vec3,
-    o1: Vec3,
-    scale: f64,
-    inv_scale: f64,
-) -> PositionMatch {
-    let middle = middle_point(p0, n0, p1, n1);
-    let o0p = position_floor_index_4(o0, q0, n0, middle, inv_scale);
-    let o1p = position_floor_index_4(o1, q1, n1, middle, inv_scale);
+fn match_extrinsic_position(lhs: Sample, rhs: Sample, scale: f64, inv_scale: f64) -> PositionMatch {
+    let middle = middle_point(lhs.p, lhs.frame.n, rhs.p, rhs.frame.n);
+    let o0p = position_floor_index_4(lhs.o, lhs.frame.q, lhs.frame.n, middle, inv_scale);
+    let o1p = position_floor_index_4(rhs.o, rhs.frame.q, rhs.frame.n, middle, inv_scale);
     let mut best = (0i32, 0i32, f64::INFINITY);
     for i in 0..4 {
-        let lhs = IVec2::new((i & 1) + o0p.x, ((i & 2) >> 1) + o0p.y);
-        let o0t = position_from_index(o0, q0, n0, lhs, scale);
+        let lhs_index = IVec2::new((i & 1) + o0p.x, ((i & 2) >> 1) + o0p.y);
+        let o0t = position_from_index(lhs.o, lhs.frame.q, lhs.frame.n, lhs_index, scale);
         for j in 0..4 {
-            let rhs = IVec2::new((j & 1) + o1p.x, ((j & 2) >> 1) + o1p.y);
-            let o1t = position_from_index(o1, q1, n1, rhs, scale);
+            let rhs_index = IVec2::new((j & 1) + o1p.x, ((j & 2) >> 1) + o1p.y);
+            let o1t = position_from_index(rhs.o, rhs.frame.q, rhs.frame.n, rhs_index, scale);
             let cost = (o0t - o1t).norm_squared();
             if cost < best.2 {
                 best = (i, j, cost);
             }
         }
     }
-    let lhs = IVec2::new((best.0 & 1) + o0p.x, ((best.0 & 2) >> 1) + o0p.y);
-    let rhs = IVec2::new((best.1 & 1) + o1p.x, ((best.1 & 2) >> 1) + o1p.y);
+    let lhs_index = IVec2::new((best.0 & 1) + o0p.x, ((best.0 & 2) >> 1) + o0p.y);
+    let rhs_index = IVec2::new((best.1 & 1) + o1p.x, ((best.1 & 2) >> 1) + o1p.y);
     PositionMatch {
-        lhs: (position_from_index(o0, q0, n0, lhs, scale), lhs),
-        rhs: (position_from_index(o1, q1, n1, rhs, scale), rhs),
+        lhs: (
+            position_from_index(lhs.o, lhs.frame.q, lhs.frame.n, lhs_index, scale),
+            lhs_index,
+        ),
+        rhs: (
+            position_from_index(rhs.o, rhs.frame.q, rhs.frame.n, rhs_index, scale),
+            rhs_index,
+        ),
         error: best.2,
     }
 }

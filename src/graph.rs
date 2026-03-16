@@ -1,7 +1,7 @@
 use crate::meshio::Vec3;
 use crate::extract::{EmbeddedGraph, TaggedLink};
 use crate::field::{
-    FieldState, RoSy4,
+    FieldState, Frame, RoSy4, Sample,
 };
 use std::collections::{HashMap, HashSet};
 
@@ -24,20 +24,32 @@ pub fn extract_graph<M: RoSy4>(state: &FieldState) -> EmbeddedGraph {
                 continue;
             }
             let orientation = M::match_orientation(
-                state.orientations[i],
-                state.normals[i],
-                state.orientations[j],
-                state.normals[j],
+                Frame {
+                    q: state.orientations[i],
+                    n: state.normals[i],
+                },
+                Frame {
+                    q: state.orientations[j],
+                    n: state.normals[j],
+                },
             );
             let position = M::match_position(
-                state.positions[i],
-                state.normals[i],
-                orientation.lhs.0,
-                state.origins[i],
-                state.positions[j],
-                state.normals[j],
-                orientation.rhs.0,
-                state.origins[j],
+                Sample {
+                    p: state.positions[i],
+                    o: state.origins[i],
+                    frame: Frame {
+                        q: orientation.lhs.0,
+                        n: state.normals[i],
+                    },
+                },
+                Sample {
+                    p: state.positions[j],
+                    o: state.origins[j],
+                    frame: Frame {
+                        q: orientation.rhs.0,
+                        n: state.normals[j],
+                    },
+                },
                 state.scale,
                 inv_scale,
             );

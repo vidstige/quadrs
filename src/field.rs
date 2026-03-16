@@ -6,7 +6,6 @@ use nalgebra::Vector2;
 pub type IVec2 = Vector2<i32>;
 
 const EPS: f64 = 1e-12;
-const SQRT_3_OVER_4: f64 = 0.866_025_403_784_439;
 const ORIENTATION_TAG: u64 = tag("field-orientation");
 const ORIGIN_TAG: u64 = tag("field-origin");
 const ORIGIN_Y_TAG: u64 = tag("field-origin-y");
@@ -491,10 +490,6 @@ fn init_random_origin(position: Vec3, normal: Vec3, scale: f64, rng: Rng) -> Vec
     let x = rng.next() * 2.0 - 1.0;
     let y = rng.mix(ORIGIN_Y_TAG).next() * 2.0 - 1.0;
     position + (s * x + t * y) * scale
-}
-
-pub fn rotate60(d: Vec3, n: Vec3) -> Vec3 {
-    n.cross(&d) * SQRT_3_OVER_4 + (d + n * n.dot(&d)) * 0.5
 }
 
 pub fn rotate90_by(q: Vec3, n: Vec3, amount: i32) -> Vec3 {

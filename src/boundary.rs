@@ -36,20 +36,6 @@ pub fn build_boundary_constraints(
     constraints
 }
 
-pub fn build_boundary_segments(mesh: &TriMesh, dedges: &DirectedEdges) -> Vec<(Vec3, Vec3)> {
-    let mut segments = Vec::new();
-    for edge in 0..dedges.e2e.len() {
-        if dedges.e2e[edge] != INVALID {
-            continue;
-        }
-        let face = mesh.faces[edge / 3];
-        let a = mesh.vertices[face[edge % 3]];
-        let b = mesh.vertices[face[(edge + 1) % 3]];
-        segments.push((a, b));
-    }
-    segments
-}
-
 pub fn build_boundary_hierarchy(
     levels: &[HierarchyLevel],
     fine_boundary: Vec<Option<BoundaryConstraint>>,

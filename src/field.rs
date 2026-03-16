@@ -29,9 +29,9 @@ pub struct FieldState {
 }
 
 pub trait RoSy4 {
-    fn orientation_compat(q0: Vec3, n0: Vec3, q1: Vec3, n1: Vec3) -> (Vec3, Vec3);
-    fn orientation_index_compat(q0: Vec3, n0: Vec3, q1: Vec3, n1: Vec3) -> (i32, i32);
-    fn position_compat(
+    fn match_orientation(q0: Vec3, n0: Vec3, q1: Vec3, n1: Vec3) -> (Vec3, Vec3);
+    fn match_orientation_index(q0: Vec3, n0: Vec3, q1: Vec3, n1: Vec3) -> (i32, i32);
+    fn match_position(
         p0: Vec3,
         n0: Vec3,
         q0: Vec3,
@@ -43,7 +43,7 @@ pub trait RoSy4 {
         scale: f64,
         inv_scale: f64,
     ) -> (Vec3, Vec3);
-    fn position_index_compat(
+    fn match_position_index(
         p0: Vec3,
         n0: Vec3,
         q0: Vec3,
@@ -61,18 +61,33 @@ pub trait RoSy4 {
 pub struct Intrinsic;
 
 impl RoSy4 for Intrinsic {
-    fn orientation_compat(q0: Vec3, n0: Vec3, q1: Vec3, n1: Vec3) -> (Vec3, Vec3) {
-        compat_orientation_intrinsic_4(q0, n0, q1, n1)
+    fn match_orientation(q0: Vec3, n0: Vec3, q1: Vec3, n1: Vec3) -> (Vec3, Vec3) {
+        let q1 = rotate_vector_into_plane(q1, n1, n0);
+        let t1 = n0.cross(&q1);
+        let dp0 = q1.dot(&q0);
+        let dp1 = t1.dot(&q0);
+        if dp0.abs() > dp1.abs() {
+            (q0, q1 * dp0.signum())
+        } else {
+            (q0, t1 * dp1.signum())
+        }
     }
 
-    fn orientation_index_compat(q0: Vec3, n0: Vec3, q1: Vec3, n1: Vec3) -> (i32, i32) {
-        compat_orientation_intrinsic_index_4(q0, n0, q1, n1)
+    fn match_orientation_index(q0: Vec3, n0: Vec3, q1: Vec3, n1: Vec3) -> (i32, i32) {
+        let q1 = rotate_vector_into_plane(q1, n1, n0);
+        let dp0 = q1.dot(&q0);
+        let dp1 = n0.cross(&q1).dot(&q0);
+        if dp0.abs() > dp1.abs() {
+            (0, if dp0 > 0.0 { 0 } else { 2 })
+        } else {
+            (0, if dp1 > 0.0 { 1 } else { 3 })
+        }
     }
 
-    fn position_compat(
+    fn match_position(
         p0: Vec3,
         n0: Vec3,
-        q0: Vec3,
+        _q0: Vec3,
         o0: Vec3,
         p1: Vec3,
         n1: Vec3,
@@ -81,13 +96,24 @@ impl RoSy4 for Intrinsic {
         scale: f64,
         inv_scale: f64,
     ) -> (Vec3, Vec3) {
-        compat_position_intrinsic_4(p0, n0, q0, o0, p1, n1, q1, o1, scale, inv_scale)
+        let mut q1 = q1;
+        let mut o1 = o1;
+        let cos_theta = n1.dot(&n0);
+        if cos_theta < 0.9999 {
+            let axis = n1.cross(&n0);
+            let factor = (1.0 - cos_theta) / axis.dot(&axis).max(EPS);
+            let middle = middle_point(p0, n0, p1, n1);
+            o1 -= middle;
+            q1 = q1 * cos_theta + axis.cross(&q1) + axis * (axis.dot(&q1) * factor);
+            o1 = o1 * cos_theta + axis.cross(&o1) + axis * (axis.dot(&o1) * factor) + middle;
+        }
+        (o0, position_round_4(o1, q1, n0, o0, scale, inv_scale))
     }
 
-    fn position_index_compat(
+    fn match_position_index(
         p0: Vec3,
         n0: Vec3,
-        q0: Vec3,
+        _q0: Vec3,
         o0: Vec3,
         p1: Vec3,
         n1: Vec3,
@@ -96,7 +122,23 @@ impl RoSy4 for Intrinsic {
         scale: f64,
         inv_scale: f64,
     ) -> (IVec2, IVec2, f64) {
-        compat_position_intrinsic_index_4(p0, n0, q0, o0, p1, n1, q1, o1, scale, inv_scale)
+        let mut q1 = q1;
+        let mut o1 = o1;
+        let cos_theta = n1.dot(&n0);
+        if cos_theta < 0.9999 {
+            let axis = n1.cross(&n0);
+            let factor = (1.0 - cos_theta) / axis.dot(&axis).max(EPS);
+            let middle = middle_point(p0, n0, p1, n1);
+            o1 -= middle;
+            q1 = q1 * cos_theta + axis.cross(&q1) + axis * (axis.dot(&q1) * factor);
+            o1 = o1 * cos_theta + axis.cross(&o1) + axis * (axis.dot(&o1) * factor) + middle;
+        }
+        let rounded = position_round_4(o1, q1, n0, o0, scale, inv_scale);
+        (
+            IVec2::new(0, 0),
+            position_round_index_4(o1, q1, n0, o0, inv_scale),
+            (o0 - rounded).norm_squared(),
+        )
     }
 }
 
@@ -104,15 +146,42 @@ impl RoSy4 for Intrinsic {
 pub struct Extrinsic;
 
 impl RoSy4 for Extrinsic {
-    fn orientation_compat(q0: Vec3, n0: Vec3, q1: Vec3, n1: Vec3) -> (Vec3, Vec3) {
-        compat_orientation_extrinsic_4(q0, n0, q1, n1)
+    fn match_orientation(q0: Vec3, n0: Vec3, q1: Vec3, n1: Vec3) -> (Vec3, Vec3) {
+        let a = [q0, n0.cross(&q0)];
+        let b = [q1, n1.cross(&q1)];
+        let mut best = (0usize, 0usize, f64::NEG_INFINITY);
+        for i in 0..2 {
+            for j in 0..2 {
+                let score = a[i].dot(&b[j]).abs();
+                if score > best.2 {
+                    best = (i, j, score);
+                }
+            }
+        }
+        let dp = a[best.0].dot(&b[best.1]);
+        (a[best.0], b[best.1] * dp.signum())
     }
 
-    fn orientation_index_compat(q0: Vec3, n0: Vec3, q1: Vec3, n1: Vec3) -> (i32, i32) {
-        compat_orientation_extrinsic_index_4(q0, n0, q1, n1)
+    fn match_orientation_index(q0: Vec3, n0: Vec3, q1: Vec3, n1: Vec3) -> (i32, i32) {
+        let a = [q0, n0.cross(&q0)];
+        let b = [q1, n1.cross(&q1)];
+        let mut best = (0usize, 0usize, f64::NEG_INFINITY);
+        for i in 0..2 {
+            for j in 0..2 {
+                let score = a[i].dot(&b[j]).abs();
+                if score > best.2 {
+                    best = (i, j, score);
+                }
+            }
+        }
+        let mut best_b = best.1 as i32;
+        if a[best.0].dot(&b[best.1]) < 0.0 {
+            best_b += 2;
+        }
+        (best.0 as i32, best_b)
     }
 
-    fn position_compat(
+    fn match_position(
         p0: Vec3,
         n0: Vec3,
         q0: Vec3,
@@ -124,10 +193,29 @@ impl RoSy4 for Extrinsic {
         scale: f64,
         inv_scale: f64,
     ) -> (Vec3, Vec3) {
-        compat_position_extrinsic_4(p0, n0, q0, o0, p1, n1, q1, o1, scale, inv_scale)
+        let t0 = n0.cross(&q0);
+        let t1 = n1.cross(&q1);
+        let middle = middle_point(p0, n0, p1, n1);
+        let o0p = position_floor_4(o0, q0, n0, middle, scale, inv_scale);
+        let o1p = position_floor_4(o1, q1, n1, middle, scale, inv_scale);
+        let mut best = (0i32, 0i32, f64::INFINITY);
+        for i in 0..4 {
+            let o0t = o0p + (q0 * ((i & 1) as f64) + t0 * (((i & 2) >> 1) as f64)) * scale;
+            for j in 0..4 {
+                let o1t = o1p + (q1 * ((j & 1) as f64) + t1 * (((j & 2) >> 1) as f64)) * scale;
+                let cost = (o0t - o1t).norm_squared();
+                if cost < best.2 {
+                    best = (i, j, cost);
+                }
+            }
+        }
+        (
+            o0p + (q0 * ((best.0 & 1) as f64) + t0 * (((best.0 & 2) >> 1) as f64)) * scale,
+            o1p + (q1 * ((best.1 & 1) as f64) + t1 * (((best.1 & 2) >> 1) as f64)) * scale,
+        )
     }
 
-    fn position_index_compat(
+    fn match_position_index(
         p0: Vec3,
         n0: Vec3,
         q0: Vec3,
@@ -139,7 +227,31 @@ impl RoSy4 for Extrinsic {
         scale: f64,
         inv_scale: f64,
     ) -> (IVec2, IVec2, f64) {
-        compat_position_extrinsic_index_4(p0, n0, q0, o0, p1, n1, q1, o1, scale, inv_scale)
+        let t0 = n0.cross(&q0);
+        let t1 = n1.cross(&q1);
+        let middle = middle_point(p0, n0, p1, n1);
+        let o0p = position_floor_index_4(o0, q0, n0, middle, inv_scale);
+        let o1p = position_floor_index_4(o1, q1, n1, middle, inv_scale);
+        let mut best = (0i32, 0i32, f64::INFINITY);
+        for i in 0..4 {
+            let o0t = o0
+                + (q0 * ((i & 1) as f64 + o0p.x as f64) + t0 * (((i & 2) >> 1) as f64 + o0p.y as f64))
+                    * scale;
+            for j in 0..4 {
+                let o1t = o1
+                    + (q1 * ((j & 1) as f64 + o1p.x as f64) + t1 * (((j & 2) >> 1) as f64 + o1p.y as f64))
+                        * scale;
+                let cost = (o0t - o1t).norm_squared();
+                if cost < best.2 {
+                    best = (i, j, cost);
+                }
+            }
+        }
+        (
+            IVec2::new((best.0 & 1) + o0p.x, ((best.0 & 2) >> 1) + o0p.y),
+            IVec2::new((best.1 & 1) + o1p.x, ((best.1 & 2) >> 1) + o1p.y),
+            best.2,
+        )
     }
 }
 
@@ -218,7 +330,7 @@ pub fn optimize_orientations<M: RoSy4>(state: &mut FieldState, phases: &[Vec<usi
                     if link.weight == 0.0 {
                         continue;
                     }
-                    let (_, aligned) = M::orientation_compat(sum, n_i, prev[link.id], state.normals[link.id]);
+                    let (_, aligned) = M::match_orientation(sum, n_i, prev[link.id], state.normals[link.id]);
                     sum = sum * weight_sum + aligned * link.weight;
                     sum -= n_i * n_i.dot(&sum);
                     weight_sum += link.weight;
@@ -228,7 +340,7 @@ pub fn optimize_orientations<M: RoSy4>(state: &mut FieldState, phases: &[Vec<usi
                     }
                 }
                 if let Some(boundary) = &state.boundary[i] {
-                    let (_, aligned) = M::orientation_compat(sum, n_i, boundary.tangent, n_i);
+                    let (_, aligned) = M::match_orientation(sum, n_i, boundary.tangent, n_i);
                     sum = sum * (1.0 - boundary.weight) + aligned * boundary.weight;
                     sum -= n_i * n_i.dot(&sum);
                     let norm = sum.norm();
@@ -261,7 +373,7 @@ pub fn optimize_positions<M: RoSy4>(state: &mut FieldState, phases: &[Vec<usize>
                     }
                     let j = link.id;
                     let q_j = normalize_or(state.orientations[j], state.orientations[j]);
-                    let (_, aligned) = M::position_compat(
+                    let (_, aligned) = M::match_position(
                         v_i,
                         n_i,
                         q_i,
@@ -299,7 +411,7 @@ pub fn freeze_orientation_ivars<M: RoSy4>(state: &mut FieldState) {
             let j = link.id;
             let q_j = normalize_or(state.orientations[j], state.orientations[j]);
             let n_j = state.normals[j];
-            let (r0, r1) = M::orientation_index_compat(q_i, n_i, q_j, n_j);
+            let (r0, r1) = M::match_orientation_index(q_i, n_i, q_j, n_j);
             link.rot = [r0 as i8, r1 as i8];
         }
     }
@@ -346,7 +458,7 @@ pub fn freeze_position_ivars<M: RoSy4>(state: &mut FieldState) {
             let q_j = normalize_or(state.orientations[j], state.orientations[j]);
             let o_j = state.origins[j];
             let (s0, s1, _) =
-                M::position_index_compat(v_i, n_i, q_i, o_i, v_j, n_j, q_j, o_j, state.scale, inv_scale);
+                M::match_position_index(v_i, n_i, q_i, o_i, v_j, n_j, q_j, o_j, state.scale, inv_scale);
             link.shift = [s0, s1];
         }
     }
@@ -448,64 +560,6 @@ fn middle_point(p0: Vec3, n0: Vec3, p1: Vec3, n1: Vec3) -> Vec3 {
     (p0 + p1) * 0.5 - (n0 * lambda0 + n1 * lambda1) * 0.25
 }
 
-pub fn compat_orientation_intrinsic_4(q0: Vec3, n0: Vec3, q1: Vec3, n1: Vec3) -> (Vec3, Vec3) {
-    let q1 = rotate_vector_into_plane(q1, n1, n0);
-    let t1 = n0.cross(&q1);
-    let dp0 = q1.dot(&q0);
-    let dp1 = t1.dot(&q0);
-    if dp0.abs() > dp1.abs() {
-        (q0, q1 * dp0.signum())
-    } else {
-        (q0, t1 * dp1.signum())
-    }
-}
-
-pub fn compat_orientation_extrinsic_4(q0: Vec3, n0: Vec3, q1: Vec3, n1: Vec3) -> (Vec3, Vec3) {
-    let a = [q0, n0.cross(&q0)];
-    let b = [q1, n1.cross(&q1)];
-    let mut best = (0usize, 0usize, f64::NEG_INFINITY);
-    for i in 0..2 {
-        for j in 0..2 {
-            let score = a[i].dot(&b[j]).abs();
-            if score > best.2 {
-                best = (i, j, score);
-            }
-        }
-    }
-    let dp = a[best.0].dot(&b[best.1]);
-    (a[best.0], b[best.1] * dp.signum())
-}
-
-pub fn compat_orientation_intrinsic_index_4(q0: Vec3, n0: Vec3, q1: Vec3, n1: Vec3) -> (i32, i32) {
-    let q1 = rotate_vector_into_plane(q1, n1, n0);
-    let dp0 = q1.dot(&q0);
-    let dp1 = n0.cross(&q1).dot(&q0);
-    if dp0.abs() > dp1.abs() {
-        (0, if dp0 > 0.0 { 0 } else { 2 })
-    } else {
-        (0, if dp1 > 0.0 { 1 } else { 3 })
-    }
-}
-
-pub fn compat_orientation_extrinsic_index_4(q0: Vec3, n0: Vec3, q1: Vec3, n1: Vec3) -> (i32, i32) {
-    let a = [q0, n0.cross(&q0)];
-    let b = [q1, n1.cross(&q1)];
-    let mut best = (0usize, 0usize, f64::NEG_INFINITY);
-    for i in 0..2 {
-        for j in 0..2 {
-            let score = a[i].dot(&b[j]).abs();
-            if score > best.2 {
-                best = (i, j, score);
-            }
-        }
-    }
-    let mut best_b = best.1 as i32;
-    if a[best.0].dot(&b[best.1]) < 0.0 {
-        best_b += 2;
-    }
-    (best.0 as i32, best_b)
-}
-
 fn position_floor_4(o: Vec3, q: Vec3, n: Vec3, p: Vec3, scale: f64, inv_scale: f64) -> Vec3 {
     let t = n.cross(&q);
     let d = p - o;
@@ -528,136 +582,6 @@ fn position_round_index_4(o: Vec3, q: Vec3, n: Vec3, p: Vec3, inv_scale: f64) ->
     let t = n.cross(&q);
     let d = p - o;
     IVec2::new((q.dot(&d) * inv_scale).round() as i32, (t.dot(&d) * inv_scale).round() as i32)
-}
-
-pub fn compat_position_intrinsic_4(
-    p0: Vec3,
-    n0: Vec3,
-    _q0: Vec3,
-    o0: Vec3,
-    p1: Vec3,
-    n1: Vec3,
-    q1: Vec3,
-    o1: Vec3,
-    scale: f64,
-    inv_scale: f64,
-) -> (Vec3, Vec3) {
-    let mut q1 = q1;
-    let mut o1 = o1;
-    let cos_theta = n1.dot(&n0);
-    if cos_theta < 0.9999 {
-        let axis = n1.cross(&n0);
-        let factor = (1.0 - cos_theta) / axis.dot(&axis).max(EPS);
-        let middle = middle_point(p0, n0, p1, n1);
-        o1 -= middle;
-        q1 = q1 * cos_theta + axis.cross(&q1) + axis * (axis.dot(&q1) * factor);
-        o1 = o1 * cos_theta + axis.cross(&o1) + axis * (axis.dot(&o1) * factor) + middle;
-    }
-    (o0, position_round_4(o1, q1, n0, o0, scale, inv_scale))
-}
-
-pub fn compat_position_intrinsic_index_4(
-    p0: Vec3,
-    n0: Vec3,
-    _q0: Vec3,
-    o0: Vec3,
-    p1: Vec3,
-    n1: Vec3,
-    q1: Vec3,
-    o1: Vec3,
-    scale: f64,
-    inv_scale: f64,
-) -> (IVec2, IVec2, f64) {
-    let mut q1 = q1;
-    let mut o1 = o1;
-    let cos_theta = n1.dot(&n0);
-    if cos_theta < 0.9999 {
-        let axis = n1.cross(&n0);
-        let factor = (1.0 - cos_theta) / axis.dot(&axis).max(EPS);
-        let middle = middle_point(p0, n0, p1, n1);
-        o1 -= middle;
-        q1 = q1 * cos_theta + axis.cross(&q1) + axis * (axis.dot(&q1) * factor);
-        o1 = o1 * cos_theta + axis.cross(&o1) + axis * (axis.dot(&o1) * factor) + middle;
-    }
-    let rounded = position_round_4(o1, q1, n0, o0, scale, inv_scale);
-    (
-        IVec2::new(0, 0),
-        position_round_index_4(o1, q1, n0, o0, inv_scale),
-        (o0 - rounded).norm_squared(),
-    )
-}
-
-pub fn compat_position_extrinsic_4(
-    p0: Vec3,
-    n0: Vec3,
-    q0: Vec3,
-    o0: Vec3,
-    p1: Vec3,
-    n1: Vec3,
-    q1: Vec3,
-    o1: Vec3,
-    scale: f64,
-    inv_scale: f64,
-) -> (Vec3, Vec3) {
-    let t0 = n0.cross(&q0);
-    let t1 = n1.cross(&q1);
-    let middle = middle_point(p0, n0, p1, n1);
-    let o0p = position_floor_4(o0, q0, n0, middle, scale, inv_scale);
-    let o1p = position_floor_4(o1, q1, n1, middle, scale, inv_scale);
-    let mut best = (0i32, 0i32, f64::INFINITY);
-    for i in 0..4 {
-        let o0t = o0p + (q0 * ((i & 1) as f64) + t0 * (((i & 2) >> 1) as f64)) * scale;
-        for j in 0..4 {
-            let o1t = o1p + (q1 * ((j & 1) as f64) + t1 * (((j & 2) >> 1) as f64)) * scale;
-            let cost = (o0t - o1t).norm_squared();
-            if cost < best.2 {
-                best = (i, j, cost);
-            }
-        }
-    }
-    (
-        o0p + (q0 * ((best.0 & 1) as f64) + t0 * (((best.0 & 2) >> 1) as f64)) * scale,
-        o1p + (q1 * ((best.1 & 1) as f64) + t1 * (((best.1 & 2) >> 1) as f64)) * scale,
-    )
-}
-
-pub fn compat_position_extrinsic_index_4(
-    p0: Vec3,
-    n0: Vec3,
-    q0: Vec3,
-    o0: Vec3,
-    p1: Vec3,
-    n1: Vec3,
-    q1: Vec3,
-    o1: Vec3,
-    scale: f64,
-    inv_scale: f64,
-) -> (IVec2, IVec2, f64) {
-    let t0 = n0.cross(&q0);
-    let t1 = n1.cross(&q1);
-    let middle = middle_point(p0, n0, p1, n1);
-    let o0p = position_floor_index_4(o0, q0, n0, middle, inv_scale);
-    let o1p = position_floor_index_4(o1, q1, n1, middle, inv_scale);
-    let mut best = (0i32, 0i32, f64::INFINITY);
-    for i in 0..4 {
-        let o0t = o0
-            + (q0 * ((i & 1) as f64 + o0p.x as f64) + t0 * (((i & 2) >> 1) as f64 + o0p.y as f64))
-                * scale;
-        for j in 0..4 {
-            let o1t = o1
-                + (q1 * ((j & 1) as f64 + o1p.x as f64) + t1 * (((j & 2) >> 1) as f64 + o1p.y as f64))
-                    * scale;
-            let cost = (o0t - o1t).norm_squared();
-            if cost < best.2 {
-                best = (i, j, cost);
-            }
-        }
-    }
-    (
-        IVec2::new((best.0 & 1) + o0p.x, ((best.0 & 2) >> 1) + o0p.y),
-        IVec2::new((best.1 & 1) + o1p.x, ((best.1 & 2) >> 1) + o1p.y),
-        best.2,
-    )
 }
 
 pub fn normalize_or(v: Vec3, fallback: Vec3) -> Vec3 {

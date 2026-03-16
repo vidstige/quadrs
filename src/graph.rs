@@ -23,13 +23,13 @@ pub fn extract_graph<M: RoSy4>(state: &FieldState, _mode: M) -> EmbeddedGraph {
             if j < i {
                 continue;
             }
-            let (q_i, q_j) = M::orientation_compat(
+            let (q_i, q_j) = M::match_orientation(
                 state.orientations[i],
                 state.normals[i],
                 state.orientations[j],
                 state.normals[j],
             );
-            let (_, shift_j, error) = M::position_index_compat(
+            let (_, shift_j, error) = M::match_position_index(
                 state.positions[i],
                 state.normals[i],
                 q_i,

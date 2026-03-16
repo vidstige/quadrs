@@ -1,3 +1,5 @@
+//! Immutable deterministic RNG utilities plus compile-time string tags for domain separation.
+
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::fmt;
 
@@ -25,6 +27,18 @@ impl Rng {
     pub fn next(self) -> f64 {
         (hash64(self.0) >> 11) as f64 / ((1u64 << 53) as f64)
     }
+}
+
+pub const fn tag(name: &str) -> u64 {
+    let bytes = name.as_bytes();
+    let mut hash = 0xcbf29ce484222325u64;
+    let mut i = 0;
+    while i < bytes.len() {
+        hash ^= bytes[i] as u64;
+        hash = hash.wrapping_mul(0x100000001b3);
+        i += 1;
+    }
+    hash
 }
 
 impl fmt::Display for Rng {

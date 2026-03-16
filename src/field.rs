@@ -1,6 +1,6 @@
 use crate::meshio::Vec3;
 use crate::preprocess::Link;
-use crate::rng::Rng;
+use crate::rng::{tag, Rng};
 use nalgebra::Vector2;
 
 pub type IVec2 = Vector2<i32>;
@@ -12,6 +12,9 @@ pub(crate) type PositionIndexCompatFn =
 
 const EPS: f64 = 1e-12;
 const SQRT_3_OVER_4: f64 = 0.866_025_403_784_439;
+const ORIENTATION_TAG: u64 = tag("field-orientation");
+const ORIGIN_TAG: u64 = tag("field-origin");
+const ORIGIN_Y_TAG: u64 = tag("field-origin-y");
 
 #[derive(Clone)]
 pub struct BoundaryConstraint {
@@ -41,7 +44,7 @@ pub fn initialize_state(
     let orientations = normals
         .iter()
         .enumerate()
-        .map(|(i, normal)| init_random_tangent(*normal, rng.mix(i as u64)))
+        .map(|(i, normal)| init_random_tangent(*normal, rng.mix(ORIENTATION_TAG).mix(i as u64)))
         .collect();
     let origins = positions
         .iter()
@@ -52,7 +55,7 @@ pub fn initialize_state(
                 *position,
                 *normal,
                 scale,
-                rng.mix(0x9e3779b97f4a7c15).mix(i as u64),
+                rng.mix(ORIGIN_TAG).mix(i as u64),
             )
         })
         .collect();
@@ -334,7 +337,7 @@ fn init_random_tangent(normal: Vec3, rng: Rng) -> Vec3 {
 fn init_random_origin(position: Vec3, normal: Vec3, scale: f64, rng: Rng) -> Vec3 {
     let (s, t) = coordinate_system(normal);
     let x = rng.next() * 2.0 - 1.0;
-    let y = rng.mix(0x517cc1b727220a95).next() * 2.0 - 1.0;
+    let y = rng.mix(ORIGIN_Y_TAG).next() * 2.0 - 1.0;
     position + (s * x + t * y) * scale
 }
 

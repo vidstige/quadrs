@@ -15,11 +15,13 @@ use remesh::field::{
 use remesh::preprocess::{
     compute_dual_vertex_areas, compute_mesh_stats, generate_smooth_normals, generate_uniform_adjacency, preprocess_mesh,
 };
-use remesh::rng::Rng;
+use remesh::rng::{tag, Rng};
 use remesh::topology::{build_directed_edges, TriMesh};
 use std::env;
 use std::error::Error;
 use std::path::PathBuf;
+
+const HIERARCHY_LEVEL_TAG: u64 = tag("hierarchy-level");
 
 fn main() {
     if matches!(env::args().nth(1).as_deref(), Some("-h" | "--help")) {
@@ -216,7 +218,7 @@ fn solve_hierarchy(
                 level.adjacency.clone(),
                 boundaries[i].clone(),
                 scale,
-                seed.mix(i as u64 + 1),
+                seed.mix(HIERARCHY_LEVEL_TAG).mix(i as u64 + 1),
             )
         })
         .collect::<Vec<_>>();

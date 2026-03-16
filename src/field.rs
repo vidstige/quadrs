@@ -62,7 +62,6 @@ pub trait RoSy4 {
     ) -> (IVec2, IVec2, f64);
 }
 
-#[derive(Clone, Copy)]
 pub struct Intrinsic;
 
 impl RoSy4 for Intrinsic {
@@ -134,7 +133,6 @@ impl RoSy4 for Intrinsic {
     }
 }
 
-#[derive(Clone, Copy)]
 pub struct Extrinsic;
 
 impl RoSy4 for Extrinsic {

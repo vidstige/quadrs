@@ -181,13 +181,11 @@ fn remesh(
     seed: Rng,
 ) -> Result<Candidate, Box<dyn Error>> {
     let graph = if args.intrinsic {
-        let mode = Intrinsic;
-        let state = solve_hierarchy(levels, boundaries, scale, args, seed, mode);
-        extract_graph(&state, mode)
+        let state = solve_hierarchy::<Intrinsic>(levels, boundaries, scale, args, seed);
+        extract_graph::<Intrinsic>(&state)
     } else {
-        let mode = Extrinsic;
-        let state = solve_hierarchy(levels, boundaries, scale, args, seed, mode);
-        extract_graph(&state, mode)
+        let state = solve_hierarchy::<Extrinsic>(levels, boundaries, scale, args, seed);
+        extract_graph::<Extrinsic>(&state)
     };
     let quad_mesh = graph.extract_pure_quad_mesh(4, true);
     let mesh = ObjMesh {
@@ -215,7 +213,6 @@ fn solve_hierarchy<M: RoSy4>(
     scale: f64,
     args: &Args,
     seed: Rng,
-    _mode: M,
 ) -> FieldState {
     let mut states = levels
         .iter()

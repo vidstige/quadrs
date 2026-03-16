@@ -12,7 +12,7 @@ struct CollapseEdge {
     error: f64,
 }
 
-pub fn extract_graph<M: RoSy4>(state: &FieldState, _mode: M) -> EmbeddedGraph {
+pub fn extract_graph<M: RoSy4>(state: &FieldState) -> EmbeddedGraph {
     let inv_scale = 1.0 / state.scale;
     let mut adjacency = vec![HashSet::<usize>::new(); state.positions.len()];
     let mut collapse_edges = Vec::new();

@@ -209,8 +209,7 @@ pub fn greedy_color(adjacency: &[Vec<Link>]) -> Vec<Vec<usize>> {
     phases
 }
 
-pub fn optimize_orientations(state: &mut FieldState, phases: &[Vec<usize>], iterations: usize, intrinsic: bool) {
-    let compat = orientation_compat(intrinsic);
+pub fn optimize_orientations<M: CompatMode>(state: &mut FieldState, phases: &[Vec<usize>], iterations: usize) {
     for _ in 0..iterations {
         let prev = state.orientations.clone();
         for phase in phases {
@@ -222,7 +221,7 @@ pub fn optimize_orientations(state: &mut FieldState, phases: &[Vec<usize>], iter
                     if link.weight == 0.0 {
                         continue;
                     }
-                    let (_, aligned) = compat(sum, n_i, prev[link.id], state.normals[link.id]);
+                    let (_, aligned) = M::orientation_compat(sum, n_i, prev[link.id], state.normals[link.id]);
                     sum = sum * weight_sum + aligned * link.weight;
                     sum -= n_i * n_i.dot(&sum);
                     weight_sum += link.weight;
@@ -232,7 +231,7 @@ pub fn optimize_orientations(state: &mut FieldState, phases: &[Vec<usize>], iter
                     }
                 }
                 if let Some(boundary) = &state.boundary[i] {
-                    let (_, aligned) = compat(sum, n_i, boundary.tangent, n_i);
+                    let (_, aligned) = M::orientation_compat(sum, n_i, boundary.tangent, n_i);
                     sum = sum * (1.0 - boundary.weight) + aligned * boundary.weight;
                     sum -= n_i * n_i.dot(&sum);
                     let norm = sum.norm();
@@ -248,9 +247,8 @@ pub fn optimize_orientations(state: &mut FieldState, phases: &[Vec<usize>], iter
     }
 }
 
-pub fn optimize_positions(state: &mut FieldState, phases: &[Vec<usize>], iterations: usize, intrinsic: bool) {
+pub fn optimize_positions<M: CompatMode>(state: &mut FieldState, phases: &[Vec<usize>], iterations: usize) {
     let inv_scale = 1.0 / state.scale;
-    let compat = position_compat(intrinsic);
     for _ in 0..iterations {
         let prev = state.origins.clone();
         for phase in phases {
@@ -266,7 +264,7 @@ pub fn optimize_positions(state: &mut FieldState, phases: &[Vec<usize>], iterati
                     }
                     let j = link.id;
                     let q_j = normalize_or(state.orientations[j], state.orientations[j]);
-                    let (_, aligned) = compat(
+                    let (_, aligned) = M::position_compat(
                         v_i,
                         n_i,
                         q_i,
@@ -296,8 +294,7 @@ pub fn optimize_positions(state: &mut FieldState, phases: &[Vec<usize>], iterati
     }
 }
 
-pub fn freeze_orientation_ivars(state: &mut FieldState, intrinsic: bool) {
-    let compat = orientation_index_compat(intrinsic);
+pub fn freeze_orientation_ivars<M: CompatMode>(state: &mut FieldState) {
     for i in 0..state.positions.len() {
         let q_i = normalize_or(state.orientations[i], state.orientations[i]);
         let n_i = state.normals[i];
@@ -305,7 +302,7 @@ pub fn freeze_orientation_ivars(state: &mut FieldState, intrinsic: bool) {
             let j = link.id;
             let q_j = normalize_or(state.orientations[j], state.orientations[j]);
             let n_j = state.normals[j];
-            let (r0, r1) = compat(q_i, n_i, q_j, n_j);
+            let (r0, r1) = M::orientation_index_compat(q_i, n_i, q_j, n_j);
             link.rot = [r0 as i8, r1 as i8];
         }
     }
@@ -338,9 +335,8 @@ pub fn optimize_orientations_frozen(state: &mut FieldState, phases: &[Vec<usize>
     }
 }
 
-pub fn freeze_position_ivars(state: &mut FieldState, intrinsic: bool) {
+pub fn freeze_position_ivars<M: CompatMode>(state: &mut FieldState) {
     let inv_scale = 1.0 / state.scale;
-    let compat = position_index_compat(intrinsic);
     for i in 0..state.positions.len() {
         let n_i = state.normals[i];
         let v_i = state.positions[i];
@@ -352,7 +348,8 @@ pub fn freeze_position_ivars(state: &mut FieldState, intrinsic: bool) {
             let v_j = state.positions[j];
             let q_j = normalize_or(state.orientations[j], state.orientations[j]);
             let o_j = state.origins[j];
-            let (s0, s1, _) = compat(v_i, n_i, q_i, o_i, v_j, n_j, q_j, o_j, state.scale, inv_scale);
+            let (s0, s1, _) =
+                M::position_index_compat(v_i, n_i, q_i, o_i, v_j, n_j, q_j, o_j, state.scale, inv_scale);
             link.shift = [s0, s1];
         }
     }

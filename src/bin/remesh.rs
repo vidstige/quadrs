@@ -10,7 +10,8 @@ use remesh::metrics::{
 use remesh::graph::extract_graph;
 use remesh::field::{
     freeze_orientation_ivars, freeze_position_ivars, initialize_state, optimize_orientations,
-    optimize_orientations_frozen, optimize_positions, optimize_positions_frozen, BoundaryConstraint, FieldState,
+    optimize_orientations_frozen, optimize_positions, optimize_positions_frozen, BoundaryConstraint, CompatMode,
+    Extrinsic, FieldState, Intrinsic,
 };
 use remesh::preprocess::{
     compute_dual_vertex_areas, compute_mesh_stats, generate_smooth_normals, generate_uniform_adjacency, preprocess_mesh,
@@ -179,7 +180,11 @@ fn remesh(
     input_abs_volume: f64,
     seed: Rng,
 ) -> Result<Candidate, Box<dyn Error>> {
-    let state = solve_hierarchy(levels, boundaries, scale, args, seed);
+    let state = if args.intrinsic {
+        solve_hierarchy::<Intrinsic>(levels, boundaries, scale, args, seed)
+    } else {
+        solve_hierarchy::<Extrinsic>(levels, boundaries, scale, args, seed)
+    };
     let graph = extract_graph(&state, args.intrinsic);
     let quad_mesh = graph.extract_pure_quad_mesh(4, true);
     let mesh = ObjMesh {
@@ -201,7 +206,7 @@ fn remesh(
     Ok(Candidate { mesh })
 }
 
-fn solve_hierarchy(
+fn solve_hierarchy<M: CompatMode>(
     levels: &[HierarchyLevel],
     boundaries: &[Vec<Option<BoundaryConstraint>>],
     scale: f64,
@@ -225,7 +230,7 @@ fn solve_hierarchy(
 
     for level_idx in (0..levels.len()).rev() {
         for _ in 0..args.hierarchy_orientation_iters {
-            optimize_orientations(&mut states[level_idx], &levels[level_idx].phases, 1, args.intrinsic);
+            optimize_orientations::<M>(&mut states[level_idx], &levels[level_idx].phases, 1);
         }
         if level_idx > 0 {
             states[level_idx - 1].orientations = prolong_orientations(
@@ -235,13 +240,13 @@ fn solve_hierarchy(
             );
         }
     }
-    optimize_orientations(&mut states[0], &levels[0].phases, args.orientation_iters, args.intrinsic);
-    freeze_orientation_ivars(&mut states[0], args.intrinsic);
+    optimize_orientations::<M>(&mut states[0], &levels[0].phases, args.orientation_iters);
+    freeze_orientation_ivars::<M>(&mut states[0]);
     optimize_orientations_frozen(&mut states[0], &levels[0].phases, args.frozen_orientation_iters);
 
     for level_idx in (0..levels.len()).rev() {
         for _ in 0..args.hierarchy_position_iters {
-            optimize_positions(&mut states[level_idx], &levels[level_idx].phases, 1, args.intrinsic);
+            optimize_positions::<M>(&mut states[level_idx], &levels[level_idx].phases, 1);
         }
         if level_idx > 0 {
             states[level_idx - 1].origins = prolong_origins(
@@ -251,8 +256,8 @@ fn solve_hierarchy(
             );
         }
     }
-    optimize_positions(&mut states[0], &levels[0].phases, args.position_iters, args.intrinsic);
-    freeze_position_ivars(&mut states[0], args.intrinsic);
+    optimize_positions::<M>(&mut states[0], &levels[0].phases, args.position_iters);
+    freeze_position_ivars::<M>(&mut states[0]);
     optimize_positions_frozen(&mut states[0], &levels[0].phases, args.frozen_position_iters);
 
     states.remove(0)

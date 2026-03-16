@@ -10,3 +10,4 @@ pub mod graph;
 pub mod preprocess;
 pub mod topology;
 pub mod rng;
+pub mod rotational_symmetry;

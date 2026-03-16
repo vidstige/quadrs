@@ -1,6 +1,7 @@
-use crate::field::{rotate_vector_into_plane, BoundaryConstraint};
+use crate::field::BoundaryConstraint;
 use crate::hierarchy::HierarchyLevel;
 use crate::meshio::Vec3;
+use crate::rotational_symmetry::rotate_vector_into_plane;
 use crate::topology::{DirectedEdges, TriMesh, INVALID};
 
 pub fn build_boundary_constraints(

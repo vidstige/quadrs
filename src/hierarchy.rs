@@ -58,7 +58,7 @@ pub fn prolong_orientations(coarse: &HierarchyLevel, fine: &HierarchyLevel, coar
         .enumerate()
         .map(|(i, &parent)| {
             let q = coarse_q[parent];
-            crate::field::rotate_vector_into_plane(q, coarse.normals[parent], fine.normals[i])
+            crate::rotational_symmetry::rotate_vector_into_plane(q, coarse.normals[parent], fine.normals[i])
         })
         .collect()
 }

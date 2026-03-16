@@ -1,8 +1,7 @@
 use crate::meshio::Vec3;
 use crate::extract::{EmbeddedGraph, TaggedLink};
-use crate::field::{
-    FieldState, Frame, RoSy4, Sample,
-};
+use crate::field::FieldState;
+use crate::rotational_symmetry::{Frame, RoSy4, Sample};
 use std::collections::{HashMap, HashSet};
 
 #[derive(Clone)]

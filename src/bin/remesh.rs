@@ -180,12 +180,13 @@ fn remesh(
     input_abs_volume: f64,
     seed: Rng,
 ) -> Result<Candidate, Box<dyn Error>> {
-    let state = if args.intrinsic {
-        solve_hierarchy::<Intrinsic>(levels, boundaries, scale, args, seed)
+    let graph = if args.intrinsic {
+        let state = solve_hierarchy::<Intrinsic>(levels, boundaries, scale, args, seed);
+        extract_graph::<Intrinsic>(&state)
     } else {
-        solve_hierarchy::<Extrinsic>(levels, boundaries, scale, args, seed)
+        let state = solve_hierarchy::<Extrinsic>(levels, boundaries, scale, args, seed);
+        extract_graph::<Extrinsic>(&state)
     };
-    let graph = extract_graph(&state, args.intrinsic);
     let quad_mesh = graph.extract_pure_quad_mesh(4, true);
     let mesh = ObjMesh {
         vertices: quad_mesh.positions,

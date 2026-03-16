@@ -34,12 +34,24 @@ pub struct Frame {
     pub n: Vec3,
 }
 
+impl Frame {
+    pub fn new(q: Vec3, n: Vec3) -> Self {
+        Self { q, n }
+    }
+}
+
 /// Local sample: vertex position `p`, lattice origin `o`, and its tangent frame.
 #[derive(Clone, Copy)]
 pub struct Sample {
     pub p: Vec3,
     pub o: Vec3,
     pub frame: Frame,
+}
+
+impl Sample {
+    pub fn new(p: Vec3, o: Vec3, frame: Frame) -> Self {
+        Self { p, o, frame }
+    }
 }
 
 pub struct OrientationMatch {
@@ -152,17 +164,15 @@ pub fn optimize_orientations<M: RoSy4>(state: &mut FieldState, phases: &[Vec<usi
             for &i in phase {
                 let n_i = state.normals[i];
                 let mut sum = prev[i];
+                let mut lhs = Frame::new(sum, n_i);
                 let mut weight_sum = 0.0;
                 for link in &state.adjacency[i] {
                     if link.weight == 0.0 {
                         continue;
                     }
                     let aligned = M::match_orientation(
-                        Frame { q: sum, n: n_i },
-                        Frame {
-                            q: prev[link.id],
-                            n: state.normals[link.id],
-                        },
+                        lhs,
+                        Frame::new(prev[link.id], state.normals[link.id]),
                     )
                     .rhs
                     .0;
@@ -172,23 +182,17 @@ pub fn optimize_orientations<M: RoSy4>(state: &mut FieldState, phases: &[Vec<usi
                     let norm = sum.norm();
                     if norm > EPS {
                         sum /= norm;
+                        lhs.q = sum;
                     }
                 }
                 if let Some(boundary) = &state.boundary[i] {
-                    let aligned = M::match_orientation(
-                        Frame { q: sum, n: n_i },
-                        Frame {
-                            q: boundary.tangent,
-                            n: n_i,
-                        },
-                    )
-                    .rhs
-                    .0;
+                    let aligned = M::match_orientation(lhs, Frame::new(boundary.tangent, n_i)).rhs.0;
                     sum = sum * (1.0 - boundary.weight) + aligned * boundary.weight;
                     sum -= n_i * n_i.dot(&sum);
                     let norm = sum.norm();
                     if norm > EPS {
                         sum /= norm;
+                        lhs.q = sum;
                     }
                 }
                 if weight_sum > 0.0 {
@@ -208,7 +212,9 @@ pub fn optimize_positions<M: RoSy4>(state: &mut FieldState, phases: &[Vec<usize>
                 let n_i = state.normals[i];
                 let v_i = state.positions[i];
                 let q_i = normalize_or(state.orientations[i], state.orientations[i]);
+                let frame_i = Frame::new(q_i, n_i);
                 let mut sum = prev[i];
+                let mut lhs = Sample::new(v_i, sum, frame_i);
                 let mut weight_sum = 0.0;
                 for link in &state.adjacency[i] {
                     if link.weight == 0.0 {
@@ -217,19 +223,12 @@ pub fn optimize_positions<M: RoSy4>(state: &mut FieldState, phases: &[Vec<usize>
                     let j = link.id;
                     let q_j = normalize_or(state.orientations[j], state.orientations[j]);
                     let aligned = M::match_position(
-                        Sample {
-                            p: v_i,
-                            o: sum,
-                            frame: Frame { q: q_i, n: n_i },
-                        },
-                        Sample {
-                            p: state.positions[j],
-                            o: prev[j],
-                            frame: Frame {
-                                q: q_j,
-                                n: state.normals[j],
-                            },
-                        },
+                        lhs,
+                        Sample::new(
+                            state.positions[j],
+                            prev[j],
+                            Frame::new(q_j, state.normals[j]),
+                        ),
                         state.scale,
                         inv_scale,
                     )
@@ -238,12 +237,14 @@ pub fn optimize_positions<M: RoSy4>(state: &mut FieldState, phases: &[Vec<usize>
                     sum = (sum * weight_sum + aligned * link.weight) / (weight_sum + link.weight);
                     weight_sum += link.weight;
                     sum -= n_i * n_i.dot(&(sum - v_i));
+                    lhs.o = sum;
                 }
                 if let Some(boundary) = &state.boundary[i] {
                     let mut delta = boundary.origin - sum;
                     delta -= boundary.tangent * boundary.tangent.dot(&delta);
                     sum += delta * boundary.weight;
                     sum -= n_i * n_i.dot(&(sum - v_i));
+                    lhs.o = sum;
                 }
                 if weight_sum > 0.0 {
                     state.origins[i] = position_round_4(sum, q_i, n_i, v_i, state.scale, inv_scale);
@@ -257,11 +258,12 @@ pub fn freeze_orientation_ivars<M: RoSy4>(state: &mut FieldState) {
     for i in 0..state.positions.len() {
         let q_i = normalize_or(state.orientations[i], state.orientations[i]);
         let n_i = state.normals[i];
+        let lhs = Frame::new(q_i, n_i);
         for link in &mut state.adjacency[i] {
             let j = link.id;
             let q_j = normalize_or(state.orientations[j], state.orientations[j]);
             let n_j = state.normals[j];
-            let m = M::match_orientation(Frame { q: q_i, n: n_i }, Frame { q: q_j, n: n_j });
+            let m = M::match_orientation(lhs, Frame::new(q_j, n_j));
             link.rot = [m.lhs.1 as i8, m.rhs.1 as i8];
         }
     }
@@ -301,6 +303,7 @@ pub fn freeze_position_ivars<M: RoSy4>(state: &mut FieldState) {
         let v_i = state.positions[i];
         let q_i = normalize_or(state.orientations[i], state.orientations[i]);
         let o_i = state.origins[i];
+        let lhs = Sample::new(v_i, o_i, Frame::new(q_i, n_i));
         for link in &mut state.adjacency[i] {
             let j = link.id;
             let n_j = state.normals[j];
@@ -308,16 +311,8 @@ pub fn freeze_position_ivars<M: RoSy4>(state: &mut FieldState) {
             let q_j = normalize_or(state.orientations[j], state.orientations[j]);
             let o_j = state.origins[j];
             let m = M::match_position(
-                Sample {
-                    p: v_i,
-                    o: o_i,
-                    frame: Frame { q: q_i, n: n_i },
-                },
-                Sample {
-                    p: v_j,
-                    o: o_j,
-                    frame: Frame { q: q_j, n: n_j },
-                },
+                lhs,
+                Sample::new(v_j, o_j, Frame::new(q_j, n_j)),
                 state.scale,
                 inv_scale,
             );

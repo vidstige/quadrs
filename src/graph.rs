@@ -23,33 +23,20 @@ pub fn extract_graph<M: RoSy4>(state: &FieldState) -> EmbeddedGraph {
             if j < i {
                 continue;
             }
-            let orientation = M::match_orientation(
-                Frame {
-                    q: state.orientations[i],
-                    n: state.normals[i],
-                },
-                Frame {
-                    q: state.orientations[j],
-                    n: state.normals[j],
-                },
-            );
+            let lhs = Frame::new(state.orientations[i], state.normals[i]);
+            let rhs = Frame::new(state.orientations[j], state.normals[j]);
+            let orientation = M::match_orientation(lhs, rhs);
             let position = M::match_position(
-                Sample {
-                    p: state.positions[i],
-                    o: state.origins[i],
-                    frame: Frame {
-                        q: orientation.lhs.0,
-                        n: state.normals[i],
-                    },
-                },
-                Sample {
-                    p: state.positions[j],
-                    o: state.origins[j],
-                    frame: Frame {
-                        q: orientation.rhs.0,
-                        n: state.normals[j],
-                    },
-                },
+                Sample::new(
+                    state.positions[i],
+                    state.origins[i],
+                    Frame::new(orientation.lhs.0, state.normals[i]),
+                ),
+                Sample::new(
+                    state.positions[j],
+                    state.origins[j],
+                    Frame::new(orientation.rhs.0, state.normals[j]),
+                ),
                 state.scale,
                 inv_scale,
             );

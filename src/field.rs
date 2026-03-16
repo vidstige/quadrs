@@ -27,20 +27,19 @@ pub struct FieldState {
     pub scale: f64,
 }
 
-struct OrientationMatch {
-    lhs: (Vec3, i32),
-    rhs: (Vec3, i32),
+pub struct OrientationMatch {
+    pub lhs: (Vec3, i32),
+    pub rhs: (Vec3, i32),
 }
 
-struct PositionMatch {
-    lhs: (Vec3, IVec2),
-    rhs: (Vec3, IVec2),
-    error: f64,
+pub struct PositionMatch {
+    pub lhs: (Vec3, IVec2),
+    pub rhs: (Vec3, IVec2),
+    pub error: f64,
 }
 
 pub trait RoSy4 {
-    fn match_orientation(q0: Vec3, n0: Vec3, q1: Vec3, n1: Vec3) -> (Vec3, Vec3);
-    fn match_orientation_index(q0: Vec3, n0: Vec3, q1: Vec3, n1: Vec3) -> (i32, i32);
+    fn match_orientation(q0: Vec3, n0: Vec3, q1: Vec3, n1: Vec3) -> OrientationMatch;
     fn match_position(
         p0: Vec3,
         n0: Vec3,
@@ -52,32 +51,14 @@ pub trait RoSy4 {
         o1: Vec3,
         scale: f64,
         inv_scale: f64,
-    ) -> (Vec3, Vec3);
-    fn match_position_index(
-        p0: Vec3,
-        n0: Vec3,
-        q0: Vec3,
-        o0: Vec3,
-        p1: Vec3,
-        n1: Vec3,
-        q1: Vec3,
-        o1: Vec3,
-        scale: f64,
-        inv_scale: f64,
-    ) -> (IVec2, IVec2, f64);
+    ) -> PositionMatch;
 }
 
 pub struct Intrinsic;
 
 impl RoSy4 for Intrinsic {
-    fn match_orientation(q0: Vec3, n0: Vec3, q1: Vec3, n1: Vec3) -> (Vec3, Vec3) {
-        let m = match_intrinsic_orientation(q0, n0, q1, n1);
-        (m.lhs.0, m.rhs.0)
-    }
-
-    fn match_orientation_index(q0: Vec3, n0: Vec3, q1: Vec3, n1: Vec3) -> (i32, i32) {
-        let m = match_intrinsic_orientation(q0, n0, q1, n1);
-        (m.lhs.1, m.rhs.1)
+    fn match_orientation(q0: Vec3, n0: Vec3, q1: Vec3, n1: Vec3) -> OrientationMatch {
+        match_intrinsic_orientation(q0, n0, q1, n1)
     }
 
     fn match_position(
@@ -91,39 +72,16 @@ impl RoSy4 for Intrinsic {
         o1: Vec3,
         scale: f64,
         inv_scale: f64,
-    ) -> (Vec3, Vec3) {
-        let m = match_intrinsic_position(p0, n0, o0, p1, n1, q1, o1, scale, inv_scale);
-        (m.lhs.0, m.rhs.0)
-    }
-
-    fn match_position_index(
-        p0: Vec3,
-        n0: Vec3,
-        _q0: Vec3,
-        o0: Vec3,
-        p1: Vec3,
-        n1: Vec3,
-        q1: Vec3,
-        o1: Vec3,
-        scale: f64,
-        inv_scale: f64,
-    ) -> (IVec2, IVec2, f64) {
-        let m = match_intrinsic_position(p0, n0, o0, p1, n1, q1, o1, scale, inv_scale);
-        (m.lhs.1, m.rhs.1, m.error)
+    ) -> PositionMatch {
+        match_intrinsic_position(p0, n0, o0, p1, n1, q1, o1, scale, inv_scale)
     }
 }
 
 pub struct Extrinsic;
 
 impl RoSy4 for Extrinsic {
-    fn match_orientation(q0: Vec3, n0: Vec3, q1: Vec3, n1: Vec3) -> (Vec3, Vec3) {
-        let m = match_extrinsic_orientation(q0, n0, q1, n1);
-        (m.lhs.0, m.rhs.0)
-    }
-
-    fn match_orientation_index(q0: Vec3, n0: Vec3, q1: Vec3, n1: Vec3) -> (i32, i32) {
-        let m = match_extrinsic_orientation(q0, n0, q1, n1);
-        (m.lhs.1, m.rhs.1)
+    fn match_orientation(q0: Vec3, n0: Vec3, q1: Vec3, n1: Vec3) -> OrientationMatch {
+        match_extrinsic_orientation(q0, n0, q1, n1)
     }
 
     fn match_position(
@@ -137,25 +95,8 @@ impl RoSy4 for Extrinsic {
         o1: Vec3,
         scale: f64,
         inv_scale: f64,
-    ) -> (Vec3, Vec3) {
-        let m = match_extrinsic_position(p0, n0, q0, o0, p1, n1, q1, o1, scale, inv_scale);
-        (m.lhs.0, m.rhs.0)
-    }
-
-    fn match_position_index(
-        p0: Vec3,
-        n0: Vec3,
-        q0: Vec3,
-        o0: Vec3,
-        p1: Vec3,
-        n1: Vec3,
-        q1: Vec3,
-        o1: Vec3,
-        scale: f64,
-        inv_scale: f64,
-    ) -> (IVec2, IVec2, f64) {
-        let m = match_extrinsic_position(p0, n0, q0, o0, p1, n1, q1, o1, scale, inv_scale);
-        (m.lhs.1, m.rhs.1, m.error)
+    ) -> PositionMatch {
+        match_extrinsic_position(p0, n0, q0, o0, p1, n1, q1, o1, scale, inv_scale)
     }
 }
 
@@ -234,7 +175,7 @@ pub fn optimize_orientations<M: RoSy4>(state: &mut FieldState, phases: &[Vec<usi
                     if link.weight == 0.0 {
                         continue;
                     }
-                    let (_, aligned) = M::match_orientation(sum, n_i, prev[link.id], state.normals[link.id]);
+                    let aligned = M::match_orientation(sum, n_i, prev[link.id], state.normals[link.id]).rhs.0;
                     sum = sum * weight_sum + aligned * link.weight;
                     sum -= n_i * n_i.dot(&sum);
                     weight_sum += link.weight;
@@ -244,7 +185,7 @@ pub fn optimize_orientations<M: RoSy4>(state: &mut FieldState, phases: &[Vec<usi
                     }
                 }
                 if let Some(boundary) = &state.boundary[i] {
-                    let (_, aligned) = M::match_orientation(sum, n_i, boundary.tangent, n_i);
+                    let aligned = M::match_orientation(sum, n_i, boundary.tangent, n_i).rhs.0;
                     sum = sum * (1.0 - boundary.weight) + aligned * boundary.weight;
                     sum -= n_i * n_i.dot(&sum);
                     let norm = sum.norm();
@@ -277,7 +218,7 @@ pub fn optimize_positions<M: RoSy4>(state: &mut FieldState, phases: &[Vec<usize>
                     }
                     let j = link.id;
                     let q_j = normalize_or(state.orientations[j], state.orientations[j]);
-                    let (_, aligned) = M::match_position(
+                    let aligned = M::match_position(
                         v_i,
                         n_i,
                         q_i,
@@ -288,7 +229,9 @@ pub fn optimize_positions<M: RoSy4>(state: &mut FieldState, phases: &[Vec<usize>
                         prev[j],
                         state.scale,
                         inv_scale,
-                    );
+                    )
+                    .rhs
+                    .0;
                     sum = (sum * weight_sum + aligned * link.weight) / (weight_sum + link.weight);
                     weight_sum += link.weight;
                     sum -= n_i * n_i.dot(&(sum - v_i));
@@ -315,8 +258,8 @@ pub fn freeze_orientation_ivars<M: RoSy4>(state: &mut FieldState) {
             let j = link.id;
             let q_j = normalize_or(state.orientations[j], state.orientations[j]);
             let n_j = state.normals[j];
-            let (r0, r1) = M::match_orientation_index(q_i, n_i, q_j, n_j);
-            link.rot = [r0 as i8, r1 as i8];
+            let m = M::match_orientation(q_i, n_i, q_j, n_j);
+            link.rot = [m.lhs.1 as i8, m.rhs.1 as i8];
         }
     }
 }
@@ -361,9 +304,8 @@ pub fn freeze_position_ivars<M: RoSy4>(state: &mut FieldState) {
             let v_j = state.positions[j];
             let q_j = normalize_or(state.orientations[j], state.orientations[j]);
             let o_j = state.origins[j];
-            let (s0, s1, _) =
-                M::match_position_index(v_i, n_i, q_i, o_i, v_j, n_j, q_j, o_j, state.scale, inv_scale);
-            link.shift = [s0, s1];
+            let m = M::match_position(v_i, n_i, q_i, o_i, v_j, n_j, q_j, o_j, state.scale, inv_scale);
+            link.shift = [m.lhs.1, m.rhs.1];
         }
     }
 }

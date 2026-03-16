@@ -23,30 +23,30 @@ pub fn extract_graph<M: RoSy4>(state: &FieldState) -> EmbeddedGraph {
             if j < i {
                 continue;
             }
-            let (q_i, q_j) = M::match_orientation(
+            let orientation = M::match_orientation(
                 state.orientations[i],
                 state.normals[i],
                 state.orientations[j],
                 state.normals[j],
             );
-            let (_, shift_j, error) = M::match_position_index(
+            let position = M::match_position(
                 state.positions[i],
                 state.normals[i],
-                q_i,
+                orientation.lhs.0,
                 state.origins[i],
                 state.positions[j],
                 state.normals[j],
-                q_j,
+                orientation.rhs.0,
                 state.origins[j],
                 state.scale,
                 inv_scale,
             );
-            let abs_diff = shift_j.map(|x| x.abs());
+            let abs_diff = position.rhs.1.map(|x| x.abs());
             if abs_diff.x.max(abs_diff.y) > 1 || (abs_diff.x == 1 && abs_diff.y == 1) {
                 continue;
             }
             if abs_diff.x + abs_diff.y == 0 {
-                collapse_edges.push(CollapseEdge { a: i, b: j, error });
+                collapse_edges.push(CollapseEdge { a: i, b: j, error: position.error });
             } else {
                 adjacency[i].insert(j);
                 adjacency[j].insert(i);

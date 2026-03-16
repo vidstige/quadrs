@@ -4,11 +4,6 @@ use crate::rng::{tag, Rng};
 use nalgebra::Vector2;
 
 pub type IVec2 = Vector2<i32>;
-pub(crate) type OrientationCompatFn = fn(Vec3, Vec3, Vec3, Vec3) -> (Vec3, Vec3);
-pub(crate) type OrientationIndexCompatFn = fn(Vec3, Vec3, Vec3, Vec3) -> (i32, i32);
-pub(crate) type PositionCompatFn = fn(Vec3, Vec3, Vec3, Vec3, Vec3, Vec3, Vec3, Vec3, f64, f64) -> (Vec3, Vec3);
-pub(crate) type PositionIndexCompatFn =
-    fn(Vec3, Vec3, Vec3, Vec3, Vec3, Vec3, Vec3, Vec3, f64, f64) -> (IVec2, IVec2, f64);
 
 const EPS: f64 = 1e-12;
 const SQRT_3_OVER_4: f64 = 0.866_025_403_784_439;
@@ -352,38 +347,6 @@ pub fn freeze_position_ivars<M: CompatMode>(state: &mut FieldState) {
                 M::position_index_compat(v_i, n_i, q_i, o_i, v_j, n_j, q_j, o_j, state.scale, inv_scale);
             link.shift = [s0, s1];
         }
-    }
-}
-
-pub(crate) fn orientation_compat(intrinsic: bool) -> OrientationCompatFn {
-    if intrinsic {
-        <Intrinsic as CompatMode>::orientation_compat
-    } else {
-        <Extrinsic as CompatMode>::orientation_compat
-    }
-}
-
-pub(crate) fn orientation_index_compat(intrinsic: bool) -> OrientationIndexCompatFn {
-    if intrinsic {
-        <Intrinsic as CompatMode>::orientation_index_compat
-    } else {
-        <Extrinsic as CompatMode>::orientation_index_compat
-    }
-}
-
-pub(crate) fn position_compat(intrinsic: bool) -> PositionCompatFn {
-    if intrinsic {
-        <Intrinsic as CompatMode>::position_compat
-    } else {
-        <Extrinsic as CompatMode>::position_compat
-    }
-}
-
-pub(crate) fn position_index_compat(intrinsic: bool) -> PositionIndexCompatFn {
-    if intrinsic {
-        <Intrinsic as CompatMode>::position_index_compat
-    } else {
-        <Extrinsic as CompatMode>::position_index_compat
     }
 }
 

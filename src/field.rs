@@ -33,6 +33,119 @@ pub struct FieldState {
     pub scale: f64,
 }
 
+pub trait CompatMode {
+    fn orientation_compat(q0: Vec3, n0: Vec3, q1: Vec3, n1: Vec3) -> (Vec3, Vec3);
+    fn orientation_index_compat(q0: Vec3, n0: Vec3, q1: Vec3, n1: Vec3) -> (i32, i32);
+    fn position_compat(
+        p0: Vec3,
+        n0: Vec3,
+        q0: Vec3,
+        o0: Vec3,
+        p1: Vec3,
+        n1: Vec3,
+        q1: Vec3,
+        o1: Vec3,
+        scale: f64,
+        inv_scale: f64,
+    ) -> (Vec3, Vec3);
+    fn position_index_compat(
+        p0: Vec3,
+        n0: Vec3,
+        q0: Vec3,
+        o0: Vec3,
+        p1: Vec3,
+        n1: Vec3,
+        q1: Vec3,
+        o1: Vec3,
+        scale: f64,
+        inv_scale: f64,
+    ) -> (IVec2, IVec2, f64);
+}
+
+pub struct Intrinsic;
+
+impl CompatMode for Intrinsic {
+    fn orientation_compat(q0: Vec3, n0: Vec3, q1: Vec3, n1: Vec3) -> (Vec3, Vec3) {
+        compat_orientation_intrinsic_4(q0, n0, q1, n1)
+    }
+
+    fn orientation_index_compat(q0: Vec3, n0: Vec3, q1: Vec3, n1: Vec3) -> (i32, i32) {
+        compat_orientation_intrinsic_index_4(q0, n0, q1, n1)
+    }
+
+    fn position_compat(
+        p0: Vec3,
+        n0: Vec3,
+        q0: Vec3,
+        o0: Vec3,
+        p1: Vec3,
+        n1: Vec3,
+        q1: Vec3,
+        o1: Vec3,
+        scale: f64,
+        inv_scale: f64,
+    ) -> (Vec3, Vec3) {
+        compat_position_intrinsic_4(p0, n0, q0, o0, p1, n1, q1, o1, scale, inv_scale)
+    }
+
+    fn position_index_compat(
+        p0: Vec3,
+        n0: Vec3,
+        q0: Vec3,
+        o0: Vec3,
+        p1: Vec3,
+        n1: Vec3,
+        q1: Vec3,
+        o1: Vec3,
+        scale: f64,
+        inv_scale: f64,
+    ) -> (IVec2, IVec2, f64) {
+        compat_position_intrinsic_index_4(p0, n0, q0, o0, p1, n1, q1, o1, scale, inv_scale)
+    }
+}
+
+pub struct Extrinsic;
+
+impl CompatMode for Extrinsic {
+    fn orientation_compat(q0: Vec3, n0: Vec3, q1: Vec3, n1: Vec3) -> (Vec3, Vec3) {
+        compat_orientation_extrinsic_4(q0, n0, q1, n1)
+    }
+
+    fn orientation_index_compat(q0: Vec3, n0: Vec3, q1: Vec3, n1: Vec3) -> (i32, i32) {
+        compat_orientation_extrinsic_index_4(q0, n0, q1, n1)
+    }
+
+    fn position_compat(
+        p0: Vec3,
+        n0: Vec3,
+        q0: Vec3,
+        o0: Vec3,
+        p1: Vec3,
+        n1: Vec3,
+        q1: Vec3,
+        o1: Vec3,
+        scale: f64,
+        inv_scale: f64,
+    ) -> (Vec3, Vec3) {
+        compat_position_extrinsic_4(p0, n0, q0, o0, p1, n1, q1, o1, scale, inv_scale)
+    }
+
+    fn position_index_compat(
+        p0: Vec3,
+        n0: Vec3,
+        q0: Vec3,
+        o0: Vec3,
+        p1: Vec3,
+        n1: Vec3,
+        q1: Vec3,
+        o1: Vec3,
+        scale: f64,
+        inv_scale: f64,
+    ) -> (IVec2, IVec2, f64) {
+        compat_position_extrinsic_index_4(p0, n0, q0, o0, p1, n1, q1, o1, scale, inv_scale)
+    }
+}
+
 pub fn initialize_state(
     positions: Vec<Vec3>,
     normals: Vec<Vec3>,
@@ -247,33 +360,33 @@ pub fn freeze_position_ivars(state: &mut FieldState, intrinsic: bool) {
 
 pub(crate) fn orientation_compat(intrinsic: bool) -> OrientationCompatFn {
     if intrinsic {
-        compat_orientation_intrinsic_4
+        <Intrinsic as CompatMode>::orientation_compat
     } else {
-        compat_orientation_extrinsic_4
+        <Extrinsic as CompatMode>::orientation_compat
     }
 }
 
 pub(crate) fn orientation_index_compat(intrinsic: bool) -> OrientationIndexCompatFn {
     if intrinsic {
-        compat_orientation_intrinsic_index_4
+        <Intrinsic as CompatMode>::orientation_index_compat
     } else {
-        compat_orientation_extrinsic_index_4
+        <Extrinsic as CompatMode>::orientation_index_compat
     }
 }
 
 pub(crate) fn position_compat(intrinsic: bool) -> PositionCompatFn {
     if intrinsic {
-        compat_position_intrinsic_4
+        <Intrinsic as CompatMode>::position_compat
     } else {
-        compat_position_extrinsic_4
+        <Extrinsic as CompatMode>::position_compat
     }
 }
 
 pub(crate) fn position_index_compat(intrinsic: bool) -> PositionIndexCompatFn {
     if intrinsic {
-        compat_position_intrinsic_index_4
+        <Intrinsic as CompatMode>::position_index_compat
     } else {
-        compat_position_extrinsic_index_4
+        <Extrinsic as CompatMode>::position_index_compat
     }
 }
 

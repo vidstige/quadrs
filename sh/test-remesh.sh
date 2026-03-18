@@ -3,9 +3,15 @@ set -euo pipefail
 
 mesh_dir="meshes"
 
+mesh_names() {
+  printf '%s\n' teapot fandisk bunny
+}
+
 mesh_name="${1:-}"
 if [[ -z "${mesh_name}" ]]; then
   printf 'usage: %s <mesh-name> [remesh args...]\n' "${0}" >&2
+  printf 'available meshes:\n' >&2
+  mesh_names >&2
   exit 1
 fi
 shift
@@ -13,6 +19,8 @@ shift
 mesh_url() {
   case "$1" in
     teapot) printf '%s\n' "https://raw.githubusercontent.com/alecjacobson/common-3d-test-models/master/data/teapot.obj" ;;
+    fandisk) printf '%s\n' "https://raw.githubusercontent.com/alecjacobson/common-3d-test-models/master/data/fandisk.obj" ;;
+    bunny) printf '%s\n' "https://raw.githubusercontent.com/alecjacobson/common-3d-test-models/master/data/stanford-bunny.obj" ;;
     *) return 1 ;;
   esac
 }

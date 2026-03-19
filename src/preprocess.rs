@@ -132,12 +132,27 @@ pub fn generate_smooth_normals(mesh: &TriMesh) -> Vec<Vec3> {
         let a = mesh.vertices[face[0]];
         let b = mesh.vertices[face[1]];
         let c = mesh.vertices[face[2]];
+        let corners = [a, b, c];
         let normal = (b - a).cross(&(c - a));
-        if normal.norm_squared() <= EPS {
+        let norm = normal.norm();
+        if norm <= EPS {
             continue;
         }
-        for &index in face {
-            normals[index] += normal;
+        let face_normal = normal / norm;
+        for corner in 0..3 {
+            let current = corners[corner];
+            let next = corners[(corner + 1) % 3];
+            let prev = corners[(corner + 2) % 3];
+            let d0 = next - current;
+            let d1 = prev - current;
+            let denom = (d0.norm_squared() * d1.norm_squared()).sqrt();
+            if denom <= EPS {
+                continue;
+            }
+            let angle = (d0.dot(&d1) / denom).clamp(-1.0, 1.0).acos();
+            if angle.is_finite() {
+                normals[face[corner]] += face_normal * angle;
+            }
         }
     }
     for normal in &mut normals {
@@ -248,12 +263,40 @@ pub fn subdivide_to_max_edge(mesh: &TriMesh, max_length: f64) -> TriMesh {
 }
 
 pub fn preprocess_mesh(mesh: &TriMesh, scale: f64) -> TriMesh {
-    let stats = compute_mesh_stats(mesh);
+    let mesh = compact_mesh(mesh);
+    let stats = compute_mesh_stats(&mesh);
     if stats.maximum_edge_length * 2.0 > scale || stats.maximum_edge_length > stats.average_edge_length * 2.0 {
-        subdivide_to_max_edge(mesh, (scale * 0.5).min(stats.average_edge_length * 2.0))
+        subdivide_to_max_edge(&mesh, (scale * 0.5).min(stats.average_edge_length * 2.0))
     } else {
-        mesh.clone()
+        mesh
     }
+}
+
+fn compact_mesh(mesh: &TriMesh) -> TriMesh {
+    let mut used = vec![false; mesh.vertices.len()];
+    for face in &mesh.faces {
+        for &index in face {
+            used[index] = true;
+        }
+    }
+
+    let mut remap = vec![INVALID; mesh.vertices.len()];
+    let mut vertices = Vec::with_capacity(mesh.faces.len().saturating_mul(3));
+    for (index, &is_used) in used.iter().enumerate() {
+        if !is_used {
+            continue;
+        }
+        remap[index] = vertices.len();
+        vertices.push(mesh.vertices[index]);
+    }
+
+    let faces = mesh
+        .faces
+        .iter()
+        .map(|face| face.map(|index| remap[index]))
+        .collect();
+
+    TriMesh { vertices, faces }
 }
 
 fn schedule_edges(
@@ -365,5 +408,21 @@ mod tests {
         };
         let subdivided = subdivide_to_max_edge(&mesh, 1.5);
         assert!(subdivided.faces.len() > mesh.faces.len());
+    }
+
+    #[test]
+    fn preprocessing_drops_isolated_vertices() {
+        let mesh = TriMesh {
+            vertices: vec![
+                Vec3::new(0.0, 0.0, 0.0),
+                Vec3::new(1.0, 0.0, 0.0),
+                Vec3::new(0.0, 1.0, 0.0),
+                Vec3::new(9.0, 9.0, 9.0),
+            ],
+            faces: vec![[0, 1, 2]],
+        };
+        let preprocessed = preprocess_mesh(&mesh, 10.0);
+        assert_eq!(preprocessed.vertices.len(), 3);
+        assert_eq!(preprocessed.faces, vec![[0, 1, 2]]);
     }
 }

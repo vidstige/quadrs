@@ -26,6 +26,7 @@ use std::fmt;
 const HIERARCHY_LEVEL_TAG: u64 = tag("hierarchy-level");
 
 #[derive(Clone, Copy, Debug, PartialEq)]
+/// Output density target for the remesher.
 pub enum RemeshTarget {
     EdgeLength(f64),
     VertexCount(usize),
@@ -33,6 +34,7 @@ pub enum RemeshTarget {
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+/// Optimization mode used for orientation and position matching.
 pub enum RemeshMode {
     #[default]
     Intrinsic,
@@ -40,6 +42,7 @@ pub enum RemeshMode {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+/// Configuration for a remeshing run.
 pub struct RemeshOptions {
     pub target: RemeshTarget,
     pub hierarchy_orientation_iterations: usize,
@@ -53,6 +56,7 @@ pub struct RemeshOptions {
 }
 
 impl RemeshOptions {
+    /// Creates options with the default iteration counts for a target.
     pub fn new(target: RemeshTarget) -> Self {
         Self {
             target,
@@ -69,6 +73,7 @@ impl RemeshOptions {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+/// Summary metrics for a polygon mesh.
 pub struct MeshReport {
     pub vertex_count: usize,
     pub face_count: usize,
@@ -86,6 +91,7 @@ pub struct MeshReport {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+/// Output from a remeshing run.
 pub struct RemeshResult {
     pub mesh: Mesh,
     pub seed: u64,
@@ -96,6 +102,7 @@ pub struct RemeshResult {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// Errors returned by the high-level remeshing API.
 pub enum RemeshError {
     EmptyMesh,
     ZeroSurfaceArea,
@@ -114,6 +121,7 @@ impl fmt::Display for RemeshError {
 
 impl Error for RemeshError {}
 
+/// Computes summary metrics for a polygon mesh.
 pub fn analyze_mesh(mesh: &Mesh) -> MeshReport {
     MeshReport {
         vertex_count: vertex_count(mesh),
@@ -132,6 +140,7 @@ pub fn analyze_mesh(mesh: &Mesh) -> MeshReport {
     }
 }
 
+/// Runs the full quad remeshing pipeline on a polygon mesh.
 pub fn remesh(mesh: &Mesh, options: &RemeshOptions) -> Result<RemeshResult, RemeshError> {
     let input = analyze_mesh(mesh);
     let tri_mesh = triangulated_mesh(mesh)?;

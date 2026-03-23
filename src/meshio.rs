@@ -7,6 +7,7 @@ use std::path::Path;
 pub type Vec3 = Vector3<f64>;
 
 #[derive(Clone, Debug, PartialEq)]
+/// Polygon mesh with 0-based vertex indices.
 pub struct Mesh {
     pub vertices: Vec<Vec3>,
     pub faces: Vec<Vec<usize>>,
@@ -14,6 +15,7 @@ pub struct Mesh {
 
 pub type ObjMesh = Mesh;
 
+/// Loads a mesh from an OBJ file.
 pub fn load_obj(path: &Path) -> Result<Mesh, Box<dyn Error>> {
     let file = File::open(path)?;
     let reader = BufReader::new(file);
@@ -51,6 +53,7 @@ pub fn load_obj(path: &Path) -> Result<Mesh, Box<dyn Error>> {
     Ok(Mesh { vertices, faces })
 }
 
+/// Triangulates polygon faces with a fan from the first vertex.
 pub fn triangulate_faces(faces: &[Vec<usize>]) -> Vec<[usize; 3]> {
     let mut triangles = Vec::new();
     for face in faces {
@@ -61,6 +64,7 @@ pub fn triangulate_faces(faces: &[Vec<usize>]) -> Vec<[usize; 3]> {
     triangles
 }
 
+/// Writes a mesh to an OBJ file.
 pub fn write_obj(
     path: &Path,
     vertices: &[Vec3],

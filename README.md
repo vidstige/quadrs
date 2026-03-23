@@ -1,10 +1,33 @@
 # quadrs
 
-Rust quad remeshing prototype based on Instant Meshes.
+Experimental quad remeshing library and CLI tools based on Instant Meshes.
 
-Created by Codex 5.4.
+## Library
 
-## Run
+The public API is centered around `Mesh`, `RemeshOptions`, `RemeshTarget`, `remesh`, `load_obj`, and `write_obj`.
+
+```rust
+use quadrs::{remesh, Mesh, RemeshOptions, RemeshTarget, Vec3};
+
+let mesh = Mesh {
+    vertices: vec![
+        Vec3::new(0.0, 0.0, 0.0),
+        Vec3::new(1.0, 0.0, 0.0),
+        Vec3::new(1.0, 1.0, 0.0),
+        Vec3::new(0.0, 1.0, 0.0),
+    ],
+    faces: vec![vec![0, 1, 2], vec![0, 2, 3]],
+};
+
+let mut options = RemeshOptions::new(RemeshTarget::FaceCount(4));
+options.seed = Some(1337);
+
+let result = remesh(&mesh, &options)?;
+assert!(result.mesh.faces.iter().all(|face| face.len() == 4));
+# Ok::<(), quadrs::RemeshError>(())
+```
+
+## CLI
 
 Build:
 

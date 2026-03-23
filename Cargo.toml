@@ -6,10 +6,12 @@ description = "Experimental quad remeshing library and tools based on Instant Me
 documentation = "https://docs.rs/quadrs"
 readme = "README.md"
 repository = "https://github.com/vidstige/quadrs"
+license = "MIT"
 keywords = ["mesh", "geometry", "remeshing", "quad"]
 categories = ["graphics", "algorithms"]
 include = [
     "Cargo.toml",
+    "LICENSE",
     "README.md",
     "src/**/*.rs",
 ]

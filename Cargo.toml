@@ -2,6 +2,16 @@
 name = "remesh"
 version = "0.1.0"
 edition = "2021"
+description = "Experimental quad remeshing library and tools based on Instant Meshes"
+readme = "README.md"
+repository = "https://github.com/vidstige/quadrs"
+keywords = ["mesh", "geometry", "remeshing", "quad"]
+categories = ["graphics", "algorithms"]
+include = [
+    "Cargo.toml",
+    "README.md",
+    "src/**/*.rs",
+]
 
 [dependencies]
 nalgebra = "0.33.2"

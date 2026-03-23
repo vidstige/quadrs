@@ -1,7 +1,5 @@
 use crate::meshio::Vec3;
-use nalgebra::Vector2;
-
-pub type IVec2 = Vector2<i32>;
+use glam::IVec2;
 
 const EPS: f64 = 1e-12;
 
@@ -53,9 +51,9 @@ pub struct Intrinsic;
 impl RoSy4 for Intrinsic {
     fn match_orientation(lhs: Frame, rhs: Frame) -> OrientationMatch {
         let q1 = rotate_vector_into_plane(rhs.q, rhs.n, lhs.n);
-        let t1 = lhs.n.cross(&q1);
-        let dp0 = q1.dot(&lhs.q);
-        let dp1 = t1.dot(&lhs.q);
+        let t1 = lhs.n.cross(q1);
+        let dp0 = q1.dot(lhs.q);
+        let dp1 = t1.dot(lhs.q);
         if dp0.abs() > dp1.abs() {
             OrientationMatch {
                 lhs: (lhs.q, 0),
@@ -78,7 +76,7 @@ impl RoSy4 for Intrinsic {
                 rhs_position,
                 position_round_index_4(o1, q1, lhs.frame.n, lhs.o, inv_scale),
             ),
-            error: (lhs.o - rhs_position).norm_squared(),
+            error: (lhs.o - rhs_position).length_squared(),
         }
     }
 }
@@ -87,18 +85,18 @@ pub struct Extrinsic;
 
 impl RoSy4 for Extrinsic {
     fn match_orientation(lhs: Frame, rhs: Frame) -> OrientationMatch {
-        let a = [lhs.q, lhs.n.cross(&lhs.q)];
-        let b = [rhs.q, rhs.n.cross(&rhs.q)];
+        let a = [lhs.q, lhs.n.cross(lhs.q)];
+        let b = [rhs.q, rhs.n.cross(rhs.q)];
         let mut best = (0usize, 0usize, f64::NEG_INFINITY);
         for i in 0..2 {
             for j in 0..2 {
-                let score = a[i].dot(&b[j]).abs();
+                let score = a[i].dot(b[j]).abs();
                 if score > best.2 {
                     best = (i, j, score);
                 }
             }
         }
-        let dp = a[best.0].dot(&b[best.1]);
+        let dp = a[best.0].dot(b[best.1]);
         OrientationMatch {
             lhs: (a[best.0], best.0 as i32),
             rhs: (
@@ -119,7 +117,7 @@ impl RoSy4 for Extrinsic {
             for j in 0..4 {
                 let rhs_index = IVec2::new((j & 1) + o1p.x, ((j & 2) >> 1) + o1p.y);
                 let o1t = position_from_index(rhs.o, rhs.frame.q, rhs.frame.n, rhs_index, scale);
-                let cost = (o0t - o1t).norm_squared();
+                let cost = (o0t - o1t).length_squared();
                 if cost < best.2 {
                     best = (i, j, cost);
                 }
@@ -142,28 +140,28 @@ impl RoSy4 for Extrinsic {
 }
 
 pub fn rotate_vector_into_plane(q: Vec3, source_normal: Vec3, target_normal: Vec3) -> Vec3 {
-    let cos_theta = source_normal.dot(&target_normal);
+    let cos_theta = source_normal.dot(target_normal);
     if cos_theta < 0.9999 {
-        let axis = source_normal.cross(&target_normal);
-        let denom = axis.dot(&axis).max(EPS);
-        q * cos_theta + axis.cross(&q) + axis * (axis.dot(&q) * (1.0 - cos_theta) / denom)
+        let axis = source_normal.cross(target_normal);
+        let denom = axis.dot(axis).max(EPS);
+        q * cos_theta + axis.cross(q) + axis * (axis.dot(q) * (1.0 - cos_theta) / denom)
     } else {
         q
     }
 }
 
 pub fn position_round_4(o: Vec3, q: Vec3, n: Vec3, p: Vec3, scale: f64, inv_scale: f64) -> Vec3 {
-    let t = n.cross(&q);
+    let t = n.cross(q);
     let d = p - o;
-    o + q * (q.dot(&d) * inv_scale).round() * scale + t * (t.dot(&d) * inv_scale).round() * scale
+    o + q * (q.dot(d) * inv_scale).round() * scale + t * (t.dot(d) * inv_scale).round() * scale
 }
 
 fn middle_point(p0: Vec3, n0: Vec3, p1: Vec3, n1: Vec3) -> Vec3 {
-    let n0p0 = n0.dot(&p0);
-    let n0p1 = n0.dot(&p1);
-    let n1p0 = n1.dot(&p0);
-    let n1p1 = n1.dot(&p1);
-    let n0n1 = n0.dot(&n1);
+    let n0p0 = n0.dot(p0);
+    let n0p1 = n0.dot(p1);
+    let n1p0 = n1.dot(p0);
+    let n1p1 = n1.dot(p1);
+    let n0n1 = n0.dot(n1);
     let denom = 1.0 / (1.0 - n0n1 * n0n1 + 1e-4);
     let lambda0 = 2.0 * (n0p1 - n0p0 - n0n1 * (n1p0 - n1p1)) * denom;
     let lambda1 = 2.0 * (n1p0 - n1p1 - n0n1 * (n0p1 - n0p0)) * denom;
@@ -171,39 +169,39 @@ fn middle_point(p0: Vec3, n0: Vec3, p1: Vec3, n1: Vec3) -> Vec3 {
 }
 
 fn position_floor_index_4(o: Vec3, q: Vec3, n: Vec3, p: Vec3, inv_scale: f64) -> IVec2 {
-    let t = n.cross(&q);
+    let t = n.cross(q);
     let d = p - o;
     IVec2::new(
-        (q.dot(&d) * inv_scale).floor() as i32,
-        (t.dot(&d) * inv_scale).floor() as i32,
+        (q.dot(d) * inv_scale).floor() as i32,
+        (t.dot(d) * inv_scale).floor() as i32,
     )
 }
 
 fn position_from_index(o: Vec3, q: Vec3, n: Vec3, index: IVec2, scale: f64) -> Vec3 {
-    let t = n.cross(&q);
+    let t = n.cross(q);
     o + (q * index.x as f64 + t * index.y as f64) * scale
 }
 
 fn position_round_index_4(o: Vec3, q: Vec3, n: Vec3, p: Vec3, inv_scale: f64) -> IVec2 {
-    let t = n.cross(&q);
+    let t = n.cross(q);
     let d = p - o;
     IVec2::new(
-        (q.dot(&d) * inv_scale).round() as i32,
-        (t.dot(&d) * inv_scale).round() as i32,
+        (q.dot(d) * inv_scale).round() as i32,
+        (t.dot(d) * inv_scale).round() as i32,
     )
 }
 
 fn transport_intrinsic_position(lhs: Sample, rhs: Sample) -> (Vec3, Vec3) {
     let mut q1 = rhs.frame.q;
     let mut o1 = rhs.o;
-    let cos_theta = rhs.frame.n.dot(&lhs.frame.n);
+    let cos_theta = rhs.frame.n.dot(lhs.frame.n);
     if cos_theta < 0.9999 {
-        let axis = rhs.frame.n.cross(&lhs.frame.n);
-        let factor = (1.0 - cos_theta) / axis.dot(&axis).max(EPS);
+        let axis = rhs.frame.n.cross(lhs.frame.n);
+        let factor = (1.0 - cos_theta) / axis.dot(axis).max(EPS);
         let middle = middle_point(lhs.p, lhs.frame.n, rhs.p, rhs.frame.n);
         o1 -= middle;
-        q1 = q1 * cos_theta + axis.cross(&q1) + axis * (axis.dot(&q1) * factor);
-        o1 = o1 * cos_theta + axis.cross(&o1) + axis * (axis.dot(&o1) * factor) + middle;
+        q1 = q1 * cos_theta + axis.cross(q1) + axis * (axis.dot(q1) * factor);
+        o1 = o1 * cos_theta + axis.cross(o1) + axis * (axis.dot(o1) * factor) + middle;
     }
     (q1, o1)
 }

@@ -1,13 +1,13 @@
 use crate::meshio::Vec3;
-use nalgebra::Vector2;
+use glam::DVec2;
 
 const EPS: f64 = 1e-12;
 
 pub fn quad_is_valid(vertices: &[Vec3], face: [usize; 4]) -> bool {
     let points = face.map(|index| vertices[index]);
-    let normal = (points[1] - points[0]).cross(&(points[2] - points[0]))
-        + (points[2] - points[0]).cross(&(points[3] - points[0]));
-    if normal.norm_squared() <= EPS {
+    let normal = (points[1] - points[0]).cross(points[2] - points[0])
+        + (points[2] - points[0]).cross(points[3] - points[0]);
+    if normal.length_squared() <= EPS {
         return false;
     }
 
@@ -24,7 +24,7 @@ pub fn quad_is_valid(vertices: &[Vec3], face: [usize; 4]) -> bool {
 }
 
 pub fn triangle_area(a: Vec3, b: Vec3, c: Vec3) -> f64 {
-    0.5 * (b - a).cross(&(c - a)).norm()
+    0.5 * (b - a).cross(c - a).length()
 }
 
 fn dominant_axis(normal: Vec3) -> usize {
@@ -40,19 +40,19 @@ fn dominant_axis(normal: Vec3) -> usize {
     }
 }
 
-fn project_2d(point: Vec3, axis: usize) -> Vector2<f64> {
+fn project_2d(point: Vec3, axis: usize) -> DVec2 {
     match axis {
-        0 => Vector2::new(point.y, point.z),
-        1 => Vector2::new(point.x, point.z),
-        _ => Vector2::new(point.x, point.y),
+        0 => DVec2::new(point.y, point.z),
+        1 => DVec2::new(point.x, point.z),
+        _ => DVec2::new(point.x, point.y),
     }
 }
 
 fn segments_intersect(
-    a0: Vector2<f64>,
-    a1: Vector2<f64>,
-    b0: Vector2<f64>,
-    b1: Vector2<f64>,
+    a0: DVec2,
+    a1: DVec2,
+    b0: DVec2,
+    b1: DVec2,
 ) -> bool {
     let o1 = orient2d(a0, a1, b0);
     let o2 = orient2d(a0, a1, b1);
@@ -61,6 +61,6 @@ fn segments_intersect(
     o1 * o2 < -EPS && o3 * o4 < -EPS
 }
 
-fn orient2d(a: Vector2<f64>, b: Vector2<f64>, c: Vector2<f64>) -> f64 {
+fn orient2d(a: DVec2, b: DVec2, c: DVec2) -> f64 {
     (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x)
 }

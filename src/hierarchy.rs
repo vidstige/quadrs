@@ -1,6 +1,7 @@
 use crate::field::greedy_color;
 use crate::meshio::Vec3;
 use crate::preprocess::Link;
+use glam::IVec2;
 use std::collections::HashMap;
 
 pub const INVALID_INDEX: usize = usize::MAX;
@@ -86,7 +87,7 @@ pub fn prolong_origins(
             let n = fine.normals[i];
             let v = fine.positions[i];
             let mut o = coarse_o[parent];
-            o -= n * n.dot(&(o - v));
+            o -= n * n.dot(o - v);
             o
         })
         .collect()
@@ -107,7 +108,7 @@ fn downsample(level: &HierarchyLevel) -> (HierarchyLevel, Vec<usize>) {
             entries.push(Entry {
                 i,
                 j: link.id,
-                order: level.normals[i].dot(&level.normals[link.id]) * ratio,
+                order: level.normals[i].dot(level.normals[link.id]) * ratio,
             });
         }
     }
@@ -179,7 +180,7 @@ fn downsample(level: &HierarchyLevel) -> (HierarchyLevel, Vec<usize>) {
                 id,
                 weight,
                 rot: [0, 0],
-                shift: [nalgebra::Vector2::new(0, 0), nalgebra::Vector2::new(0, 0)],
+                shift: [IVec2::new(0, 0), IVec2::new(0, 0)],
             })
             .collect();
     }

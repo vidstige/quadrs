@@ -110,9 +110,9 @@ pub fn optimize_orientations<M: RoSy4>(
                     .rhs
                     .0;
                     sum = sum * weight_sum + aligned * link.weight;
-                    sum -= n_i * n_i.dot(&sum);
+                    sum -= n_i * n_i.dot(sum);
                     weight_sum += link.weight;
-                    let norm = sum.norm();
+                    let norm = sum.length();
                     if norm > EPS {
                         sum /= norm;
                         lhs.q = sum;
@@ -123,8 +123,8 @@ pub fn optimize_orientations<M: RoSy4>(
                         .rhs
                         .0;
                     sum = sum * (1.0 - boundary.weight) + aligned * boundary.weight;
-                    sum -= n_i * n_i.dot(&sum);
-                    let norm = sum.norm();
+                    sum -= n_i * n_i.dot(sum);
+                    let norm = sum.length();
                     if norm > EPS {
                         sum /= norm;
                         lhs.q = sum;
@@ -175,14 +175,14 @@ pub fn optimize_positions<M: RoSy4>(
                     .0;
                     sum = (sum * weight_sum + aligned * link.weight) / (weight_sum + link.weight);
                     weight_sum += link.weight;
-                    sum -= n_i * n_i.dot(&(sum - v_i));
+                    sum -= n_i * n_i.dot(sum - v_i);
                     lhs.o = sum;
                 }
                 if let Some(boundary) = &state.boundary[i] {
                     let mut delta = boundary.origin - sum;
-                    delta -= boundary.tangent * boundary.tangent.dot(&delta);
+                    delta -= boundary.tangent * boundary.tangent.dot(delta);
                     sum += delta * boundary.weight;
-                    sum -= n_i * n_i.dot(&(sum - v_i));
+                    sum -= n_i * n_i.dot(sum - v_i);
                     lhs.o = sum;
                 }
                 if weight_sum > 0.0 {
@@ -218,7 +218,7 @@ pub fn optimize_orientations_frozen(
         for phase in phases {
             for &i in phase {
                 let n_i = state.normals[i];
-                let mut sum = Vec3::zeros();
+                let mut sum = Vec3::ZERO;
                 let mut weight_sum = 0.0;
                 for link in &state.adjacency[i] {
                     if link.weight == 0.0 {
@@ -229,8 +229,8 @@ pub fn optimize_orientations_frozen(
                     sum += rotate90_by(temp, -n_i, link.rot[0] as i32) * link.weight;
                     weight_sum += link.weight;
                 }
-                sum -= n_i * n_i.dot(&sum);
-                let norm = sum.norm();
+                sum -= n_i * n_i.dot(sum);
+                let norm = sum.length();
                 if norm > EPS && weight_sum > 0.0 {
                     state.orientations[i] = sum / norm;
                 }
@@ -272,8 +272,8 @@ pub fn optimize_positions_frozen(state: &mut FieldState, phases: &[Vec<usize>], 
                 let n_i = state.normals[i];
                 let v_i = state.positions[i];
                 let q_i = normalize_or(state.orientations[i], state.orientations[i]);
-                let t_i = n_i.cross(&q_i);
-                let mut sum = Vec3::zeros();
+                let t_i = n_i.cross(q_i);
+                let mut sum = Vec3::ZERO;
                 let mut weight_sum = 0.0;
                 for link in &state.adjacency[i] {
                     if link.weight == 0.0 {
@@ -282,7 +282,7 @@ pub fn optimize_positions_frozen(state: &mut FieldState, phases: &[Vec<usize>], 
                     let j = link.id;
                     let n_j = state.normals[j];
                     let q_j = normalize_or(state.orientations[j], state.orientations[j]);
-                    let t_j = n_j.cross(&q_j);
+                    let t_j = n_j.cross(q_j);
                     let s0 = link.shift[0];
                     let s1 = link.shift[1];
                     sum += prev[j]
@@ -294,7 +294,7 @@ pub fn optimize_positions_frozen(state: &mut FieldState, phases: &[Vec<usize>], 
                 }
                 if weight_sum > 0.0 {
                     sum /= weight_sum;
-                    sum -= n_i * n_i.dot(&(sum - v_i));
+                    sum -= n_i * n_i.dot(sum - v_i);
                     state.origins[i] = sum;
                 }
             }
@@ -310,7 +310,7 @@ pub fn coordinate_system(normal: Vec3) -> (Vec3, Vec3) {
         let inv_len = 1.0 / (normal.y * normal.y + normal.z * normal.z).sqrt().max(EPS);
         Vec3::new(0.0, normal.z * inv_len, -normal.y * inv_len)
     };
-    let b = c.cross(&normal);
+    let b = c.cross(normal);
     (b, c)
 }
 
@@ -328,7 +328,7 @@ fn init_random_origin(position: Vec3, normal: Vec3, scale: f64, rng: Rng) -> Vec
 }
 
 pub fn rotate90_by(q: Vec3, n: Vec3, amount: i32) -> Vec3 {
-    let rotated = if amount & 1 == 1 { n.cross(&q) } else { q };
+    let rotated = if amount & 1 == 1 { n.cross(q) } else { q };
     if amount < 2 {
         rotated
     } else {
@@ -337,7 +337,7 @@ pub fn rotate90_by(q: Vec3, n: Vec3, amount: i32) -> Vec3 {
 }
 
 pub fn normalize_or(v: Vec3, fallback: Vec3) -> Vec3 {
-    if v.norm_squared() <= EPS {
+    if v.length_squared() <= EPS {
         fallback
     } else {
         v.normalize()

@@ -2,7 +2,7 @@ use crate::meshio::Vec3;
 use crate::topology::{
     build_directed_edges, dedge_next_3, dedge_prev_3, DirectedEdges, TriMesh, INVALID,
 };
-use nalgebra::Vector2;
+use glam::IVec2;
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 
@@ -20,7 +20,7 @@ pub struct Link {
     pub id: usize,
     pub weight: f64,
     pub rot: [i8; 2],
-    pub shift: [Vector2<i32>; 2],
+    pub shift: [IVec2; 2],
 }
 
 pub fn compute_mesh_stats(mesh: &TriMesh) -> MeshStats {
@@ -35,11 +35,11 @@ pub fn compute_mesh_stats(mesh: &TriMesh) -> MeshStats {
             mesh.vertices[face[2]],
         ];
         for i in 0..3 {
-            let edge_length = (tri[i] - tri[(i + 1) % 3]).norm();
+            let edge_length = (tri[i] - tri[(i + 1) % 3]).length();
             average_edge_length += edge_length;
             maximum_edge_length = maximum_edge_length.max(edge_length);
         }
-        let area = 0.5 * (tri[1] - tri[0]).cross(&(tri[2] - tri[0])).norm();
+        let area = 0.5 * (tri[1] - tri[0]).cross(tri[2] - tri[0]).length();
         surface_area += area;
     }
     if !mesh.faces.is_empty() {
@@ -70,8 +70,8 @@ pub fn compute_dual_vertex_areas(mesh: &TriMesh, dedge: &DirectedEdges) -> Vec<f
             let prev_mid = (v + vp) * 0.5;
             let next_mid = (v + vn) * 0.5;
             areas[vertex] += 0.5
-                * ((v - prev_mid).cross(&(v - face_center)).norm()
-                    + (v - next_mid).cross(&(v - face_center)).norm());
+                * ((v - prev_mid).cross(v - face_center).length()
+                    + (v - next_mid).cross(v - face_center).length());
             let opposite = dedge.e2e[edge];
             if opposite == INVALID {
                 break;
@@ -125,7 +125,7 @@ pub fn generate_uniform_adjacency(mesh: &TriMesh, dedge: &DirectedEdges) -> Vec<
                 id,
                 weight: 1.0,
                 rot: [0, 0],
-                shift: [Vector2::new(0, 0), Vector2::new(0, 0)],
+                shift: [IVec2::new(0, 0), IVec2::new(0, 0)],
             })
             .collect();
     }
@@ -133,14 +133,14 @@ pub fn generate_uniform_adjacency(mesh: &TriMesh, dedge: &DirectedEdges) -> Vec<
 }
 
 pub fn generate_smooth_normals(mesh: &TriMesh) -> Vec<Vec3> {
-    let mut normals = vec![Vec3::zeros(); mesh.vertices.len()];
+    let mut normals = vec![Vec3::ZERO; mesh.vertices.len()];
     for face in &mesh.faces {
         let a = mesh.vertices[face[0]];
         let b = mesh.vertices[face[1]];
         let c = mesh.vertices[face[2]];
         let corners = [a, b, c];
-        let normal = (b - a).cross(&(c - a));
-        let norm = normal.norm();
+        let normal = (b - a).cross(c - a);
+        let norm = normal.length();
         if norm <= EPS {
             continue;
         }
@@ -151,18 +151,18 @@ pub fn generate_smooth_normals(mesh: &TriMesh) -> Vec<Vec3> {
             let prev = corners[(corner + 2) % 3];
             let d0 = next - current;
             let d1 = prev - current;
-            let denom = (d0.norm_squared() * d1.norm_squared()).sqrt();
+            let denom = (d0.length_squared() * d1.length_squared()).sqrt();
             if denom <= EPS {
                 continue;
             }
-            let angle = (d0.dot(&d1) / denom).clamp(-1.0, 1.0).acos();
+            let angle = (d0.dot(d1) / denom).clamp(-1.0, 1.0).acos();
             if angle.is_finite() {
                 normals[face[corner]] += face_normal * angle;
             }
         }
     }
     for normal in &mut normals {
-        if normal.norm_squared() > EPS {
+        if normal.length_squared() > EPS {
             *normal = normal.normalize();
         } else {
             *normal = Vec3::new(0.0, 0.0, 1.0);
@@ -197,7 +197,7 @@ pub fn subdivide_to_max_edge(mesh: &TriMesh, max_length: f64) -> TriMesh {
         let v0 = faces[f0][e0 % 3];
         let v0p = faces[f0][(e0 + 2) % 3];
         let v1 = faces[f0][(e0 + 1) % 3];
-        let current_length = (vertices[v0] - vertices[v1]).norm_squared();
+        let current_length = (vertices[v0] - vertices[v1]).length_squared();
         if (current_length - edge.length_sq).abs() > 1e-15 {
             continue;
         }
@@ -325,7 +325,7 @@ fn schedule_edges(
         if dedge.nonmanifold[v0] || dedge.nonmanifold[v1] {
             continue;
         }
-        let length_sq = (vertices[v0] - vertices[v1]).norm_squared();
+        let length_sq = (vertices[v0] - vertices[v1]).length_squared();
         if length_sq > max_length_sq && (dedge.e2e[edge] == INVALID || dedge.e2e[edge] > edge) {
             queue.push(ScheduledEdge {
                 id: edge,
@@ -344,7 +344,7 @@ fn schedule_face(
 ) {
     for corner in 0..3 {
         let face = faces[face_index];
-        let length_sq = (vertices[face[corner]] - vertices[face[(corner + 1) % 3]]).norm_squared();
+        let length_sq = (vertices[face[corner]] - vertices[face[(corner + 1) % 3]]).length_squared();
         if length_sq > max_length_sq {
             queue.push(ScheduledEdge {
                 id: face_index * 3 + corner,

@@ -18,11 +18,11 @@ pub fn build_boundary_constraints(
         let i0 = face[edge % 3];
         let i1 = face[(edge + 1) % 3];
         let direction = mesh.vertices[i1] - mesh.vertices[i0];
-        if direction.norm_squared() <= 1e-12 {
+        if direction.length_squared() <= 1e-12 {
             continue;
         }
-        let tangent0 = (direction - normals[i0] * normals[i0].dot(&direction)).normalize();
-        let tangent1 = (direction - normals[i1] * normals[i1].dot(&direction)).normalize();
+        let tangent0 = (direction - normals[i0] * normals[i0].dot(direction)).normalize();
+        let tangent1 = (direction - normals[i1] * normals[i1].dot(direction)).normalize();
         constraints[i0] = Some(BoundaryConstraint {
             origin: mesh.vertices[i0],
             tangent: tangent0,
@@ -47,8 +47,8 @@ pub fn build_boundary_hierarchy(
         let fine = &levels[level_idx];
         let coarse = &levels[level_idx + 1];
         let to_coarser = fine.to_coarser.as_ref().unwrap();
-        let mut origins = vec![Vec3::zeros(); coarse.positions.len()];
-        let mut tangents = vec![Vec3::zeros(); coarse.positions.len()];
+        let mut origins = vec![Vec3::ZERO; coarse.positions.len()];
+        let mut tangents = vec![Vec3::ZERO; coarse.positions.len()];
         let mut weights = vec![0.0; coarse.positions.len()];
         for (i, constraint) in hierarchy[level_idx].iter().enumerate() {
             let Some(constraint) = constraint else {
@@ -73,10 +73,10 @@ pub fn build_boundary_hierarchy(
             let normal = coarse.normals[i];
             let position = coarse.positions[i];
             let mut origin = origins[i] / weights[i];
-            origin -= normal * normal.dot(&(origin - position));
+            origin -= normal * normal.dot(origin - position);
             let mut tangent = tangents[i];
-            tangent -= normal * normal.dot(&tangent);
-            if tangent.norm_squared() <= 1e-12 {
+            tangent -= normal * normal.dot(tangent);
+            if tangent.length_squared() <= 1e-12 {
                 continue;
             }
             coarse_boundary[i] = Some(BoundaryConstraint {

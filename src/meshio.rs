@@ -1,10 +1,10 @@
-use nalgebra::Vector3;
+use glam::DVec3;
 use std::error::Error;
 use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::Path;
 
-pub type Vec3 = Vector3<f64>;
+pub type Vec3 = DVec3;
 
 #[derive(Clone, Debug, PartialEq)]
 /// Polygon mesh with 0-based vertex indices.

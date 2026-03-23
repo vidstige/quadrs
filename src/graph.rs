@@ -90,8 +90,8 @@ pub fn extract_graph<M: RoSy4>(state: &FieldState) -> EmbeddedGraph {
         root_to_index.entry(root).or_insert(next);
     }
 
-    let mut positions = vec![Vec3::zeros(); root_to_index.len()];
-    let mut normals = vec![Vec3::zeros(); root_to_index.len()];
+    let mut positions = vec![Vec3::ZERO; root_to_index.len()];
+    let mut normals = vec![Vec3::ZERO; root_to_index.len()];
     let mut weights = vec![0.0; root_to_index.len()];
     let mut cluster_counts = vec![0usize; root_to_index.len()];
     for i in 0..state.positions.len() {
@@ -99,7 +99,7 @@ pub fn extract_graph<M: RoSy4>(state: &FieldState) -> EmbeddedGraph {
         let Some(&cluster) = root_to_index.get(&root) else {
             continue;
         };
-        let weight = (-((state.origins[i] - state.positions[i]).norm_squared())
+        let weight = (-((state.origins[i] - state.positions[i]).length_squared())
             * inv_scale
             * inv_scale
             * 9.0)

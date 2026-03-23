@@ -26,8 +26,8 @@ pub fn area(mesh: &ObjMesh) -> f64 {
         .into_iter()
         .map(|[a, b, c]| {
             0.5 * (mesh.vertices[b] - mesh.vertices[a])
-                .cross(&(mesh.vertices[c] - mesh.vertices[a]))
-                .norm()
+                .cross(mesh.vertices[c] - mesh.vertices[a])
+                .length()
         })
         .sum()
 }
@@ -35,7 +35,7 @@ pub fn area(mesh: &ObjMesh) -> f64 {
 pub fn abs_volume(mesh: &ObjMesh) -> f64 {
     triangulate_faces(&mesh.faces)
         .into_iter()
-        .map(|[a, b, c]| mesh.vertices[a].dot(&mesh.vertices[b].cross(&mesh.vertices[c])) / 6.0)
+        .map(|[a, b, c]| mesh.vertices[a].dot(mesh.vertices[b].cross(mesh.vertices[c])) / 6.0)
         .sum::<f64>()
         .abs()
 }

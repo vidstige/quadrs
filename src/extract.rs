@@ -79,8 +79,8 @@ impl EmbeddedGraph {
             self.adjacency[i].sort_by(|lhs, rhs| {
                 let vl = self.positions[lhs.id] - origin;
                 let vr = self.positions[rhs.id] - origin;
-                let al = t.dot(&vl).atan2(s.dot(&vl));
-                let ar = t.dot(&vr).atan2(s.dot(&vr));
+                let al = t.dot(vl).atan2(s.dot(vl));
+                let ar = t.dot(vr).atan2(s.dot(vr));
                 ar.total_cmp(&al)
             });
         }
@@ -214,9 +214,9 @@ impl EmbeddedGraph {
                                 continue;
                             }
                             let p_k = self.positions[k];
-                            let a = (p_j - p_k).norm();
-                            let b = (p_i - p_j).norm();
-                            let c = (p_i - p_k).norm();
+                            let a = (p_j - p_k).length();
+                            let b = (p_i - p_j).length();
+                            let c = (p_i - p_k).length();
                             if a <= b.max(c) {
                                 continue;
                             }
@@ -239,9 +239,9 @@ impl EmbeddedGraph {
                     let p_i = self.positions[i];
                     let p_j = self.positions[j];
                     let p_k = self.positions[k];
-                    let a = (p_j - p_k).norm();
-                    let b = (p_i - p_j).norm();
-                    let c = (p_i - p_k).norm();
+                    let a = (p_j - p_k).length();
+                    let b = (p_i - p_j).length();
+                    let c = (p_i - p_k).length();
                     let Some(height) = triangle_height(a, b, c) else {
                         continue;
                     };
@@ -289,12 +289,12 @@ impl EmbeddedGraph {
                     let length = shared
                         .iter()
                         .map(|&k| {
-                            (self.positions[k] - self.positions[i]).norm()
-                                + (self.positions[k] - self.positions[j]).norm()
+                            (self.positions[k] - self.positions[i]).length()
+                                + (self.positions[k] - self.positions[j]).length()
                         })
                         .sum::<f64>();
                     let expected = length * std::f64::consts::SQRT_2 / 4.0;
-                    let diag = (self.positions[i] - self.positions[j]).norm();
+                    let diag = (self.positions[i] - self.positions[j]).length();
                     let score = ((diag - expected) / diag.min(expected)).abs();
                     candidates.push((score, i, j));
                 }
@@ -493,7 +493,7 @@ fn fill_cycle(
 fn angle_error(v0: Vec3, v1: Vec3, v2: Vec3, target_deg: f64) -> f64 {
     let d0 = normalize_or(v0 - v1, Vec3::new(1.0, 0.0, 0.0));
     let d1 = normalize_or(v2 - v1, Vec3::new(0.0, 1.0, 0.0));
-    let cosine = d0.dot(&d1).clamp(-1.0, 1.0);
+    let cosine = d0.dot(d1).clamp(-1.0, 1.0);
     (cosine.acos().to_degrees() - target_deg).abs()
 }
 
@@ -662,7 +662,7 @@ fn average_position(positions: &[Vec3], face: &[usize; 4]) -> Vec3 {
 
 fn average_position_slice(positions: &[Vec3], face: &[usize]) -> Vec3 {
     face.iter()
-        .fold(Vec3::zeros(), |sum, &index| sum + positions[index])
+        .fold(Vec3::ZERO, |sum, &index| sum + positions[index])
         / face.len() as f64
 }
 
@@ -673,7 +673,7 @@ fn average_normal(normals: &[Vec3], face: &[usize; 4]) -> Vec3 {
 fn average_normal_slice(normals: &[Vec3], face: &[usize]) -> Vec3 {
     normalize_or(
         face.iter()
-            .fold(Vec3::zeros(), |sum, &index| sum + normals[index]),
+            .fold(Vec3::ZERO, |sum, &index| sum + normals[index]),
         Vec3::new(0.0, 0.0, 1.0),
     )
 }
@@ -695,12 +695,12 @@ fn coordinate_system(normal: Vec3) -> (Vec3, Vec3) {
         Vec3::new(0.0, -normal.z, normal.y)
     };
     let s = normalize_or(tangent, Vec3::new(1.0, 0.0, 0.0));
-    let t = normalize_or(normal.cross(&s), Vec3::new(0.0, 1.0, 0.0));
+    let t = normalize_or(normal.cross(s), Vec3::new(0.0, 1.0, 0.0));
     (s, t)
 }
 
 fn normalize_or(vector: Vec3, fallback: Vec3) -> Vec3 {
-    if vector.norm_squared() <= EPS {
+    if vector.length_squared() <= EPS {
         fallback
     } else {
         vector.normalize()

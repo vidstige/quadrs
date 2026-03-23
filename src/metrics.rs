@@ -24,7 +24,11 @@ pub fn non_quad_face_count(mesh: &ObjMesh) -> usize {
 pub fn area(mesh: &ObjMesh) -> f64 {
     triangulate_faces(&mesh.faces)
         .into_iter()
-        .map(|[a, b, c]| 0.5 * (mesh.vertices[b] - mesh.vertices[a]).cross(&(mesh.vertices[c] - mesh.vertices[a])).norm())
+        .map(|[a, b, c]| {
+            0.5 * (mesh.vertices[b] - mesh.vertices[a])
+                .cross(&(mesh.vertices[c] - mesh.vertices[a]))
+                .norm()
+        })
         .sum()
 }
 
@@ -41,15 +45,24 @@ pub fn boundary_edge_count(mesh: &ObjMesh) -> usize {
 }
 
 pub fn nonmanifold_edge_count(mesh: &ObjMesh) -> usize {
-    edge_counts(mesh).values().filter(|&&count| count > 2).count()
+    edge_counts(mesh)
+        .values()
+        .filter(|&&count| count > 2)
+        .count()
 }
 
 pub fn fewer_than_three_face_count(mesh: &ObjMesh) -> usize {
-    mesh.faces.iter().filter(|face| has_too_few_vertices(face)).count()
+    mesh.faces
+        .iter()
+        .filter(|face| has_too_few_vertices(face))
+        .count()
 }
 
 pub fn repeated_vertex_face_count(mesh: &ObjMesh) -> usize {
-    mesh.faces.iter().filter(|face| has_repeated_vertex(face)).count()
+    mesh.faces
+        .iter()
+        .filter(|face| has_repeated_vertex(face))
+        .count()
 }
 
 pub fn invalid_vertex_index_face_count(mesh: &ObjMesh) -> usize {
@@ -60,7 +73,10 @@ pub fn invalid_vertex_index_face_count(mesh: &ObjMesh) -> usize {
 }
 
 pub fn invalid_quad_face_count(mesh: &ObjMesh) -> usize {
-    mesh.faces.iter().filter(|face| is_invalid_quad(face, &mesh.vertices)).count()
+    mesh.faces
+        .iter()
+        .filter(|face| is_invalid_quad(face, &mesh.vertices))
+        .count()
 }
 
 pub fn isolated_vertex_count(mesh: &ObjMesh) -> usize {

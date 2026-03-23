@@ -16,5 +16,9 @@ pub fn boundary_edges(edge_counts: &HashMap<(usize, usize), usize>) -> Vec<(usiz
 }
 
 pub fn edge_key(a: usize, b: usize) -> (usize, usize) {
-    if a < b { (a, b) } else { (b, a) }
+    if a < b {
+        (a, b)
+    } else {
+        (b, a)
+    }
 }

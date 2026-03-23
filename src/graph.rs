@@ -1,6 +1,6 @@
-use crate::meshio::Vec3;
 use crate::extract::{EmbeddedGraph, TaggedLink};
 use crate::field::FieldState;
+use crate::meshio::Vec3;
 use crate::rotational_symmetry::{Frame, RoSy4, Sample};
 use std::collections::{HashMap, HashSet};
 
@@ -44,7 +44,11 @@ pub fn extract_graph<M: RoSy4>(state: &FieldState) -> EmbeddedGraph {
                 continue;
             }
             if abs_diff.x + abs_diff.y == 0 {
-                collapse_edges.push(CollapseEdge { a: i, b: j, error: position.error });
+                collapse_edges.push(CollapseEdge {
+                    a: i,
+                    b: j,
+                    error: position.error,
+                });
             } else {
                 adjacency[i].insert(j);
                 adjacency[j].insert(i);
@@ -95,7 +99,11 @@ pub fn extract_graph<M: RoSy4>(state: &FieldState) -> EmbeddedGraph {
         let Some(&cluster) = root_to_index.get(&root) else {
             continue;
         };
-        let weight = (-((state.origins[i] - state.positions[i]).norm_squared()) * inv_scale * inv_scale * 9.0).exp();
+        let weight = (-((state.origins[i] - state.positions[i]).norm_squared())
+            * inv_scale
+            * inv_scale
+            * 9.0)
+            .exp();
         positions[cluster] += state.origins[i] * weight;
         normals[cluster] += state.normals[i] * weight;
         weights[cluster] += weight;

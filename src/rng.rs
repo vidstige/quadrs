@@ -1,7 +1,7 @@
 //! Immutable deterministic RNG utilities plus compile-time string tags for domain separation.
 
-use std::time::{SystemTime, UNIX_EPOCH};
 use std::fmt;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Rng(u64);
@@ -26,6 +26,10 @@ impl Rng {
 
     pub fn next(self) -> f64 {
         (hash64(self.0) >> 11) as f64 / ((1u64 << 53) as f64)
+    }
+
+    pub(crate) fn value(self) -> u64 {
+        self.0
     }
 }
 

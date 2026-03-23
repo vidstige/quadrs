@@ -1,5 +1,7 @@
 use crate::meshio::Vec3;
-use crate::topology::{build_directed_edges, dedge_next_3, dedge_prev_3, DirectedEdges, TriMesh, INVALID};
+use crate::topology::{
+    build_directed_edges, dedge_next_3, dedge_prev_3, DirectedEdges, TriMesh, INVALID,
+};
 use nalgebra::Vector2;
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
@@ -97,7 +99,11 @@ pub fn generate_uniform_adjacency(mesh: &TriMesh, dedge: &DirectedEdges) -> Vec<
             let base = edge % 3;
             let face = mesh.faces[edge / 3];
             let opposite = dedge.e2e[edge];
-            let next = if opposite == INVALID { INVALID } else { dedge_next_3(opposite) };
+            let next = if opposite == INVALID {
+                INVALID
+            } else {
+                dedge_next_3(opposite)
+            };
             if iteration == 0 {
                 neighbors.push(face[(base + 2) % 3]);
             }
@@ -209,7 +215,11 @@ pub fn subdivide_to_max_edge(mesh: &TriMesh, max_length: f64) -> TriMesh {
         dedge.nonmanifold.push(false);
 
         let f2 = if is_boundary { INVALID } else { faces.len() };
-        let f3 = if is_boundary { faces.len() } else { faces.len() + 1 };
+        let f3 = if is_boundary {
+            faces.len()
+        } else {
+            faces.len() + 1
+        };
         if !is_boundary {
             faces.push([0, 0, 0]);
         }
@@ -265,7 +275,9 @@ pub fn subdivide_to_max_edge(mesh: &TriMesh, max_length: f64) -> TriMesh {
 pub fn preprocess_mesh(mesh: &TriMesh, scale: f64) -> TriMesh {
     let mesh = compact_mesh(mesh);
     let stats = compute_mesh_stats(&mesh);
-    if stats.maximum_edge_length * 2.0 > scale || stats.maximum_edge_length > stats.average_edge_length * 2.0 {
+    if stats.maximum_edge_length * 2.0 > scale
+        || stats.maximum_edge_length > stats.average_edge_length * 2.0
+    {
         subdivide_to_max_edge(&mesh, (scale * 0.5).min(stats.average_edge_length * 2.0))
     } else {
         mesh
@@ -315,7 +327,10 @@ fn schedule_edges(
         }
         let length_sq = (vertices[v0] - vertices[v1]).norm_squared();
         if length_sq > max_length_sq && (dedge.e2e[edge] == INVALID || dedge.e2e[edge] > edge) {
-            queue.push(ScheduledEdge { id: edge, length_sq });
+            queue.push(ScheduledEdge {
+                id: edge,
+                length_sq,
+            });
         }
     }
 }

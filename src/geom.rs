@@ -5,8 +5,8 @@ const EPS: f64 = 1e-12;
 
 pub fn quad_is_valid(vertices: &[Vec3], face: [usize; 4]) -> bool {
     let points = face.map(|index| vertices[index]);
-    let normal =
-        (points[1] - points[0]).cross(&(points[2] - points[0])) + (points[2] - points[0]).cross(&(points[3] - points[0]));
+    let normal = (points[1] - points[0]).cross(&(points[2] - points[0]))
+        + (points[2] - points[0]).cross(&(points[3] - points[0]));
     if normal.norm_squared() <= EPS {
         return false;
     }
@@ -48,7 +48,12 @@ fn project_2d(point: Vec3, axis: usize) -> Vector2<f64> {
     }
 }
 
-fn segments_intersect(a0: Vector2<f64>, a1: Vector2<f64>, b0: Vector2<f64>, b1: Vector2<f64>) -> bool {
+fn segments_intersect(
+    a0: Vector2<f64>,
+    a1: Vector2<f64>,
+    b0: Vector2<f64>,
+    b1: Vector2<f64>,
+) -> bool {
     let o1 = orient2d(a0, a1, b0);
     let o2 = orient2d(a0, a1, b1);
     let o3 = orient2d(b0, b1, a0);

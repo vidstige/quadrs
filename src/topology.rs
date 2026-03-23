@@ -17,11 +17,19 @@ pub struct DirectedEdges {
 }
 
 pub fn dedge_prev_3(edge: usize) -> usize {
-    if edge % 3 == 0 { edge + 2 } else { edge - 1 }
+    if edge % 3 == 0 {
+        edge + 2
+    } else {
+        edge - 1
+    }
 }
 
 pub fn dedge_next_3(edge: usize) -> usize {
-    if edge % 3 == 2 { edge - 2 } else { edge + 1 }
+    if edge % 3 == 2 {
+        edge - 2
+    } else {
+        edge + 1
+    }
 }
 
 pub fn build_directed_edges(mesh: &TriMesh) -> DirectedEdges {

@@ -1,5 +1,5 @@
-use crate::meshio::Vec3;
 use crate::field::greedy_color;
+use crate::meshio::Vec3;
 use crate::preprocess::Link;
 use std::collections::HashMap;
 
@@ -39,7 +39,8 @@ pub fn build_hierarchy(
 
     loop {
         let (coarse, to_coarser) = downsample(levels.last().unwrap());
-        let done = coarse.positions.len() <= 1 || coarse.positions.len() == levels.last().unwrap().positions.len();
+        let done = coarse.positions.len() <= 1
+            || coarse.positions.len() == levels.last().unwrap().positions.len();
         let fine = levels.last_mut().unwrap();
         fine.to_coarser = Some(to_coarser);
         levels.push(coarse);
@@ -50,7 +51,11 @@ pub fn build_hierarchy(
     levels
 }
 
-pub fn prolong_orientations(coarse: &HierarchyLevel, fine: &HierarchyLevel, coarse_q: &[Vec3]) -> Vec<Vec3> {
+pub fn prolong_orientations(
+    coarse: &HierarchyLevel,
+    fine: &HierarchyLevel,
+    coarse_q: &[Vec3],
+) -> Vec<Vec3> {
     fine.to_coarser
         .as_ref()
         .unwrap()
@@ -58,12 +63,20 @@ pub fn prolong_orientations(coarse: &HierarchyLevel, fine: &HierarchyLevel, coar
         .enumerate()
         .map(|(i, &parent)| {
             let q = coarse_q[parent];
-            crate::rotational_symmetry::rotate_vector_into_plane(q, coarse.normals[parent], fine.normals[i])
+            crate::rotational_symmetry::rotate_vector_into_plane(
+                q,
+                coarse.normals[parent],
+                fine.normals[i],
+            )
         })
         .collect()
 }
 
-pub fn prolong_origins(_coarse: &HierarchyLevel, fine: &HierarchyLevel, coarse_o: &[Vec3]) -> Vec<Vec3> {
+pub fn prolong_origins(
+    _coarse: &HierarchyLevel,
+    fine: &HierarchyLevel,
+    coarse_o: &[Vec3],
+) -> Vec<Vec3> {
     fine.to_coarser
         .as_ref()
         .unwrap()
@@ -137,7 +150,8 @@ fn downsample(level: &HierarchyLevel) -> (HierarchyLevel, Vec<usize>) {
         } else {
             (level.positions[i] + level.positions[j]) * 0.5
         };
-        let normal = (level.normals[i] * level.areas[i] + level.normals[j] * level.areas[j]).normalize();
+        let normal =
+            (level.normals[i] * level.areas[i] + level.normals[j] * level.areas[j]).normalize();
         positions.push(position);
         normals.push(normal);
         areas.push(area);

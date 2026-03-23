@@ -57,8 +57,11 @@ pub fn build_boundary_hierarchy(
             let parent = to_coarser[i];
             let weight = fine.areas[i].max(1e-12) * constraint.weight.max(1e-12);
             origins[parent] += constraint.origin * weight;
-            tangents[parent] +=
-                rotate_vector_into_plane(constraint.tangent, fine.normals[i], coarse.normals[parent]) * weight;
+            tangents[parent] += rotate_vector_into_plane(
+                constraint.tangent,
+                fine.normals[i],
+                coarse.normals[parent],
+            ) * weight;
             weights[parent] += weight;
         }
 

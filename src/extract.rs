@@ -39,21 +39,27 @@ pub struct CleanupStats {
 }
 
 #[derive(Default)]
+#[cfg_attr(not(test), allow(dead_code))]
 pub struct ExtractionStats {
     pub extracted_faces: usize,
     pub filled_holes: usize,
     pub degree_histogram: HashMap<usize, usize>,
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 pub struct ExtractedMesh {
     pub positions: Vec<Vec3>,
     pub quads: Vec<[usize; 4]>,
-    pub crease: HashSet<usize>,
     pub stats: ExtractionStats,
 }
 
 impl EmbeddedGraph {
-    pub fn cleanup(&mut self, collapse_counts: Option<&[usize]>, scale: f64, posy: usize) -> CleanupStats {
+    pub fn cleanup(
+        &mut self,
+        collapse_counts: Option<&[usize]>,
+        scale: f64,
+        posy: usize,
+    ) -> CleanupStats {
         let mut stats = CleanupStats::default();
         if let Some(counts) = collapse_counts {
             stats.removed_vertices = self.remove_spurious_vertices(counts);
@@ -146,7 +152,6 @@ impl EmbeddedGraph {
         ExtractedMesh {
             positions,
             quads,
-            crease,
             stats,
         }
     }
@@ -249,7 +254,8 @@ impl EmbeddedGraph {
                         self.merge_vertex_into(i, merge);
                     } else {
                         self.positions[i] = (p_j + p_k) * 0.5;
-                        self.normals[i] = normalize_or(self.normals[j] + self.normals[k], self.normals[i]);
+                        self.normals[i] =
+                            normalize_or(self.normals[j] + self.normals[k], self.normals[i]);
                         if self.crease.contains(&j) && self.crease.contains(&k) {
                             self.crease.insert(i);
                         }
@@ -282,7 +288,10 @@ impl EmbeddedGraph {
                     }
                     let length = shared
                         .iter()
-                        .map(|&k| (self.positions[k] - self.positions[i]).norm() + (self.positions[k] - self.positions[j]).norm())
+                        .map(|&k| {
+                            (self.positions[k] - self.positions[i]).norm()
+                                + (self.positions[k] - self.positions[j]).norm()
+                        })
                         .sum::<f64>();
                     let expected = length * std::f64::consts::SQRT_2 / 4.0;
                     let diag = (self.positions[i] - self.positions[j]).norm();
@@ -307,7 +316,10 @@ impl EmbeddedGraph {
 
     fn merge_vertex_into(&mut self, target: usize, merge: usize) {
         self.positions[target] = (self.positions[target] + self.positions[merge]) * 0.5;
-        self.normals[target] = normalize_or(self.normals[target] + self.normals[merge], self.normals[target]);
+        self.normals[target] = normalize_or(
+            self.normals[target] + self.normals[merge],
+            self.normals[target],
+        );
         let mut neighbors = HashSet::new();
         for link in &self.adjacency[target] {
             neighbors.insert(link.id);
@@ -523,54 +535,70 @@ fn regular_subdivide_to_quads(
             crease.insert(face_center);
         }
         let mids = [
-            edge_center(edge_centers.entry(edge_key(face[0], face[1])).or_insert_with(|| {
-                let index = append_vertex(
-                    positions,
-                    normals,
-                    (positions[face[0]] + positions[face[1]]) * 0.5,
-                    normalize_or(normals[face[0]] + normals[face[1]], normals[face[0]]),
-                );
-                if crease.contains(&face[0]) && crease.contains(&face[1]) {
-                    crease.insert(index);
-                }
-                index
-            })),
-            edge_center(edge_centers.entry(edge_key(face[1], face[2])).or_insert_with(|| {
-                let index = append_vertex(
-                    positions,
-                    normals,
-                    (positions[face[1]] + positions[face[2]]) * 0.5,
-                    normalize_or(normals[face[1]] + normals[face[2]], normals[face[1]]),
-                );
-                if crease.contains(&face[1]) && crease.contains(&face[2]) {
-                    crease.insert(index);
-                }
-                index
-            })),
-            edge_center(edge_centers.entry(edge_key(face[2], face[3])).or_insert_with(|| {
-                let index = append_vertex(
-                    positions,
-                    normals,
-                    (positions[face[2]] + positions[face[3]]) * 0.5,
-                    normalize_or(normals[face[2]] + normals[face[3]], normals[face[2]]),
-                );
-                if crease.contains(&face[2]) && crease.contains(&face[3]) {
-                    crease.insert(index);
-                }
-                index
-            })),
-            edge_center(edge_centers.entry(edge_key(face[3], face[0])).or_insert_with(|| {
-                let index = append_vertex(
-                    positions,
-                    normals,
-                    (positions[face[3]] + positions[face[0]]) * 0.5,
-                    normalize_or(normals[face[3]] + normals[face[0]], normals[face[3]]),
-                );
-                if crease.contains(&face[3]) && crease.contains(&face[0]) {
-                    crease.insert(index);
-                }
-                index
-            })),
+            edge_center(
+                edge_centers
+                    .entry(edge_key(face[0], face[1]))
+                    .or_insert_with(|| {
+                        let index = append_vertex(
+                            positions,
+                            normals,
+                            (positions[face[0]] + positions[face[1]]) * 0.5,
+                            normalize_or(normals[face[0]] + normals[face[1]], normals[face[0]]),
+                        );
+                        if crease.contains(&face[0]) && crease.contains(&face[1]) {
+                            crease.insert(index);
+                        }
+                        index
+                    }),
+            ),
+            edge_center(
+                edge_centers
+                    .entry(edge_key(face[1], face[2]))
+                    .or_insert_with(|| {
+                        let index = append_vertex(
+                            positions,
+                            normals,
+                            (positions[face[1]] + positions[face[2]]) * 0.5,
+                            normalize_or(normals[face[1]] + normals[face[2]], normals[face[1]]),
+                        );
+                        if crease.contains(&face[1]) && crease.contains(&face[2]) {
+                            crease.insert(index);
+                        }
+                        index
+                    }),
+            ),
+            edge_center(
+                edge_centers
+                    .entry(edge_key(face[2], face[3]))
+                    .or_insert_with(|| {
+                        let index = append_vertex(
+                            positions,
+                            normals,
+                            (positions[face[2]] + positions[face[3]]) * 0.5,
+                            normalize_or(normals[face[2]] + normals[face[3]], normals[face[2]]),
+                        );
+                        if crease.contains(&face[2]) && crease.contains(&face[3]) {
+                            crease.insert(index);
+                        }
+                        index
+                    }),
+            ),
+            edge_center(
+                edge_centers
+                    .entry(edge_key(face[3], face[0]))
+                    .or_insert_with(|| {
+                        let index = append_vertex(
+                            positions,
+                            normals,
+                            (positions[face[3]] + positions[face[0]]) * 0.5,
+                            normalize_or(normals[face[3]] + normals[face[0]], normals[face[3]]),
+                        );
+                        if crease.contains(&face[3]) && crease.contains(&face[0]) {
+                            crease.insert(index);
+                        }
+                        index
+                    }),
+            ),
         ];
         quads.push([mids[0], face[1], mids[1], face_center]);
         quads.push([mids[1], face[2], mids[2], face_center]);
@@ -616,7 +644,12 @@ fn regular_subdivide_to_quads(
     quads
 }
 
-fn append_vertex(positions: &mut Vec<Vec3>, normals: &mut Vec<Vec3>, position: Vec3, normal: Vec3) -> usize {
+fn append_vertex(
+    positions: &mut Vec<Vec3>,
+    normals: &mut Vec<Vec3>,
+    position: Vec3,
+    normal: Vec3,
+) -> usize {
     let index = positions.len();
     positions.push(position);
     normals.push(normalize_or(normal, Vec3::new(0.0, 0.0, 1.0)));
@@ -628,7 +661,9 @@ fn average_position(positions: &[Vec3], face: &[usize; 4]) -> Vec3 {
 }
 
 fn average_position_slice(positions: &[Vec3], face: &[usize]) -> Vec3 {
-    face.iter().fold(Vec3::zeros(), |sum, &index| sum + positions[index]) / face.len() as f64
+    face.iter()
+        .fold(Vec3::zeros(), |sum, &index| sum + positions[index])
+        / face.len() as f64
 }
 
 fn average_normal(normals: &[Vec3], face: &[usize; 4]) -> Vec3 {
@@ -637,7 +672,8 @@ fn average_normal(normals: &[Vec3], face: &[usize; 4]) -> Vec3 {
 
 fn average_normal_slice(normals: &[Vec3], face: &[usize]) -> Vec3 {
     normalize_or(
-        face.iter().fold(Vec3::zeros(), |sum, &index| sum + normals[index]),
+        face.iter()
+            .fold(Vec3::zeros(), |sum, &index| sum + normals[index]),
         Vec3::new(0.0, 0.0, 1.0),
     )
 }
@@ -672,7 +708,11 @@ fn normalize_or(vector: Vec3, fallback: Vec3) -> Vec3 {
 }
 
 fn edge_key(a: usize, b: usize) -> (usize, usize) {
-    if a < b { (a, b) } else { (b, a) }
+    if a < b {
+        (a, b)
+    } else {
+        (b, a)
+    }
 }
 
 fn has_edge(adjacency: &[Vec<TaggedLink>], a: usize, b: usize) -> bool {

@@ -43,12 +43,7 @@ pub fn initialize_state(
         .zip(normals.iter())
         .enumerate()
         .map(|(i, (position, normal))| {
-            init_random_origin(
-                *position,
-                *normal,
-                scale,
-                rng.mix(ORIGIN_TAG).mix(i as u64),
-            )
+            init_random_origin(*position, *normal, scale, rng.mix(ORIGIN_TAG).mix(i as u64))
         })
         .collect();
     FieldState {
@@ -75,7 +70,10 @@ pub fn greedy_color(adjacency: &[Vec<Link>]) -> Vec<Vec<usize>> {
                 forbidden[color] = true;
             }
         }
-        let color = forbidden.iter().position(|&used| !used).unwrap_or(color_count);
+        let color = forbidden
+            .iter()
+            .position(|&used| !used)
+            .unwrap_or(color_count);
         if color == color_count {
             color_count += 1;
         }
@@ -88,7 +86,11 @@ pub fn greedy_color(adjacency: &[Vec<Link>]) -> Vec<Vec<usize>> {
     phases
 }
 
-pub fn optimize_orientations<M: RoSy4>(state: &mut FieldState, phases: &[Vec<usize>], iterations: usize) {
+pub fn optimize_orientations<M: RoSy4>(
+    state: &mut FieldState,
+    phases: &[Vec<usize>],
+    iterations: usize,
+) {
     for _ in 0..iterations {
         let prev = state.orientations.clone();
         for phase in phases {
@@ -117,7 +119,9 @@ pub fn optimize_orientations<M: RoSy4>(state: &mut FieldState, phases: &[Vec<usi
                     }
                 }
                 if let Some(boundary) = &state.boundary[i] {
-                    let aligned = M::match_orientation(lhs, Frame::new(boundary.tangent, n_i)).rhs.0;
+                    let aligned = M::match_orientation(lhs, Frame::new(boundary.tangent, n_i))
+                        .rhs
+                        .0;
                     sum = sum * (1.0 - boundary.weight) + aligned * boundary.weight;
                     sum -= n_i * n_i.dot(&sum);
                     let norm = sum.norm();
@@ -134,7 +138,11 @@ pub fn optimize_orientations<M: RoSy4>(state: &mut FieldState, phases: &[Vec<usi
     }
 }
 
-pub fn optimize_positions<M: RoSy4>(state: &mut FieldState, phases: &[Vec<usize>], iterations: usize) {
+pub fn optimize_positions<M: RoSy4>(
+    state: &mut FieldState,
+    phases: &[Vec<usize>],
+    iterations: usize,
+) {
     let inv_scale = 1.0 / state.scale;
     for _ in 0..iterations {
         let prev = state.origins.clone();
@@ -200,7 +208,11 @@ pub fn freeze_orientation_ivars<M: RoSy4>(state: &mut FieldState) {
     }
 }
 
-pub fn optimize_orientations_frozen(state: &mut FieldState, phases: &[Vec<usize>], iterations: usize) {
+pub fn optimize_orientations_frozen(
+    state: &mut FieldState,
+    phases: &[Vec<usize>],
+    iterations: usize,
+) {
     for _ in 0..iterations {
         let prev = state.orientations.clone();
         for phase in phases {
@@ -275,8 +287,7 @@ pub fn optimize_positions_frozen(state: &mut FieldState, phases: &[Vec<usize>], 
                     let s1 = link.shift[1];
                     sum += prev[j]
                         + state.scale
-                            * (q_j * s1.x as f64
-                                + t_j * s1.y as f64
+                            * (q_j * s1.x as f64 + t_j * s1.y as f64
                                 - q_i * s0.x as f64
                                 - t_i * s0.y as f64);
                     weight_sum += link.weight;
@@ -318,7 +329,11 @@ fn init_random_origin(position: Vec3, normal: Vec3, scale: f64, rng: Rng) -> Vec
 
 pub fn rotate90_by(q: Vec3, n: Vec3, amount: i32) -> Vec3 {
     let rotated = if amount & 1 == 1 { n.cross(&q) } else { q };
-    if amount < 2 { rotated } else { -rotated }
+    if amount < 2 {
+        rotated
+    } else {
+        -rotated
+    }
 }
 
 pub fn normalize_or(v: Vec3, fallback: Vec3) -> Vec3 {

@@ -1,13 +1,20 @@
-pub mod boundary;
-pub mod connectivity;
-pub mod geom;
-pub mod meshio;
-pub mod hierarchy;
-pub mod metrics;
-pub mod extract;
-pub mod field;
-pub mod graph;
-pub mod preprocess;
-pub mod topology;
-pub mod rng;
-pub mod rotational_symmetry;
+mod api;
+mod boundary;
+mod connectivity;
+mod extract;
+mod field;
+mod geom;
+mod graph;
+mod hierarchy;
+mod meshio;
+mod metrics;
+mod preprocess;
+mod rng;
+mod rotational_symmetry;
+mod topology;
+
+pub use crate::api::{
+    analyze_mesh, remesh, MeshReport, RemeshError, RemeshMode, RemeshOptions, RemeshResult,
+    RemeshTarget,
+};
+pub use crate::meshio::{load_obj, write_obj, Mesh, Vec3};

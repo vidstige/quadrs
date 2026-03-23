@@ -6,12 +6,15 @@ use std::path::Path;
 
 pub type Vec3 = Vector3<f64>;
 
-pub struct ObjMesh {
+#[derive(Clone, Debug, PartialEq)]
+pub struct Mesh {
     pub vertices: Vec<Vec3>,
     pub faces: Vec<Vec<usize>>,
 }
 
-pub fn load_obj(path: &Path) -> Result<ObjMesh, Box<dyn Error>> {
+pub type ObjMesh = Mesh;
+
+pub fn load_obj(path: &Path) -> Result<Mesh, Box<dyn Error>> {
     let file = File::open(path)?;
     let reader = BufReader::new(file);
     let mut vertices = Vec::new();
@@ -45,7 +48,7 @@ pub fn load_obj(path: &Path) -> Result<ObjMesh, Box<dyn Error>> {
         }
     }
 
-    Ok(ObjMesh { vertices, faces })
+    Ok(Mesh { vertices, faces })
 }
 
 pub fn triangulate_faces(faces: &[Vec<usize>]) -> Vec<[usize; 3]> {

@@ -1,8 +1,9 @@
 [package]
-name = "remesh"
+name = "quadrs"
 version = "0.1.0"
 edition = "2021"
 description = "Experimental quad remeshing library and tools based on Instant Meshes"
+documentation = "https://docs.rs/quadrs"
 readme = "README.md"
 repository = "https://github.com/vidstige/quadrs"
 keywords = ["mesh", "geometry", "remeshing", "quad"]
